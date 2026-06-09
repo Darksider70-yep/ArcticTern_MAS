@@ -108,8 +108,6 @@ export class GateAgent {
         if (ready) {
           decision.gateId = ready.id;
           decision.callsign = ready.occupiedBy;
-          ready.occupied = false;
-          ready.occupiedBy = null;
           reward = 0.5;
         } else {
           reward = -0.1;

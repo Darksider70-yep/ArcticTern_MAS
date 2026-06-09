@@ -60,38 +60,52 @@ export class RunwayAgent {
 
     switch (action) {
       case 'CLEAR_LANDING': {
-        const runway = this.runways.find(r => r.active && !r.occupied && r.cooldownTimer <= 0);
-        if (runway && runway.queue.length > 0) {
-          const flight = runway.queue.shift();
-          runway.occupied = true;
-          runway.occupiedBy = flight.callsign;
-          runway.cooldownTimer = 30; // ticks
-          runway.totalOps++;
-          this.totalThroughput++;
-          reward = 1.0 - (flight.waitTime || 0) * 0.01;
-          decision.runway = runway.name;
-          decision.callsign = flight.callsign;
-          decision.queue = runway.queue.length;
-          decision.wait = Math.round((flight.waitTime || 0));
+        const runwaysWithArrivals = this.runways.filter(
+          r => r.active && !r.occupied && r.cooldownTimer <= 0 && r.queue.some(f => f.type === 'arrival')
+        );
+        if (runwaysWithArrivals.length > 0) {
+          runwaysWithArrivals.sort((a, b) => b.queue.length - a.queue.length);
+          const runway = runwaysWithArrivals[0];
+          const flightIdx = runway.queue.findIndex(f => f.type === 'arrival');
+          if (flightIdx >= 0) {
+            const flight = runway.queue.splice(flightIdx, 1)[0];
+            runway.occupied = true;
+            runway.occupiedBy = flight.callsign;
+            runway.cooldownTimer = 30; // ticks
+            runway.totalOps++;
+            this.totalThroughput++;
+            reward = 1.0 - (flight.waitTime || 0) * 0.01;
+            decision.runway = runway.name;
+            decision.callsign = flight.callsign;
+            decision.queue = runway.queue.length;
+            decision.wait = Math.round((flight.waitTime || 0));
+          } else {
+            reward = -0.1;
+          }
         } else {
-          reward = -0.1; // No valid action
+          reward = -0.1;
         }
         break;
       }
       case 'CLEAR_TAKEOFF': {
-        const runway = this.runways.find(r => r.active && !r.occupied && r.cooldownTimer <= 0);
-        if (runway) {
-          const depFlight = runway.queue.find(f => f.type === 'departure');
-          if (depFlight) {
-            runway.queue = runway.queue.filter(f => f !== depFlight);
+        const runwaysWithDepartures = this.runways.filter(
+          r => r.active && !r.occupied && r.cooldownTimer <= 0 && r.queue.some(f => f.type === 'departure')
+        );
+        if (runwaysWithDepartures.length > 0) {
+          runwaysWithDepartures.sort((a, b) => b.queue.length - a.queue.length);
+          const runway = runwaysWithDepartures[0];
+          const depIdx = runway.queue.findIndex(f => f.type === 'departure');
+          if (depIdx >= 0) {
+            const depFlight = runway.queue.splice(depIdx, 1)[0];
             runway.occupied = true;
             runway.occupiedBy = depFlight.callsign;
             runway.cooldownTimer = 25;
             runway.totalOps++;
             this.totalThroughput++;
-            reward = 0.8;
+            reward = 0.8 - (depFlight.waitTime || 0) * 0.005;
             decision.runway = runway.name;
             decision.callsign = depFlight.callsign;
+            decision.wait = Math.round(depFlight.waitTime || 0);
           } else {
             reward = -0.1;
           }
@@ -103,6 +117,7 @@ export class RunwayAgent {
       case 'HOLD':
         reward = -0.05 * this.runways.reduce((s, r) => s + r.queue.length, 0);
         break;
+
       case 'SWITCH_RUNWAY':
         if (weatherState.intensity > 5) {
           // Valid to switch during bad weather

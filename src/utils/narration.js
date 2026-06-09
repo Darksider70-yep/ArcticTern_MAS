@@ -81,6 +81,15 @@ const TEMPLATES = {
     WEATHER_RESPONSE: [
       '🔧 Coordinator: Weather protocol activated. Adjusting all agent priorities. {action}.',
     ],
+    LIVE_API_FETCH: [
+      '📡 Coordinator: {msg}',
+    ],
+    LIVE_API_SUCCESS: [
+      '📡 Coordinator: {msg}',
+    ],
+    LIVE_API_FALLBACK: [
+      '📡 Coordinator: {msg}',
+    ],
   },
   flight: {
     REQUEST_LANDING: [

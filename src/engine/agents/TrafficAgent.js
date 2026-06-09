@@ -33,8 +33,6 @@ export class TrafficAgent {
     for (const f of airborne) {
       const sectorX = f.x < 500 ? 'W' : 'E';
       const sectorY = f.y < 350 ? 'N' : 'S';
-      const sector = `N${sectorX}`.replace('NE', 'NE').replace('NW', 'NW')
-        .replace(/^N/, sectorY === 'N' ? 'N' : 'S');
       const key = `${sectorY}${sectorX}`;
       if (this.sectors[key]) this.sectors[key].count++;
     }

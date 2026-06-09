@@ -18,21 +18,56 @@ export default function ScenarioControls({
     <div className="scenario-controls" id="scenario-controls">
       {/* Simulation Situation Toggles */}
       <div className="scenario-presets" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {/* 1. Traffic Toggle */}
-        <button
-          className={`scenario-btn ${trafficMode === 'RUSH_HOUR' ? 'scenario-btn-active' : ''}`}
-          onClick={onTrafficToggle}
-          id="btn-toggle-traffic"
-          title="Toggle Peak Rush Hour Traffic"
-          style={{
-            borderColor: trafficMode === 'RUSH_HOUR' ? '#ef4444' : 'var(--glass-border)',
-            color: trafficMode === 'RUSH_HOUR' ? '#ef4444' : 'var(--text-secondary)',
-            boxShadow: trafficMode === 'RUSH_HOUR' ? '0 0 10px rgba(239, 68, 68, 0.2)' : 'none',
-          }}
-        >
-          <span className="scenario-icon">{trafficMode === 'RUSH_HOUR' ? '🔥' : '✈️'}</span>
-          <span className="scenario-name">{trafficMode === 'RUSH_HOUR' ? 'Rush Hour' : 'Normal Traffic'}</span>
-        </button>
+        {/* 1. Traffic Options */}
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            className={`scenario-btn ${trafficMode === 'NORMAL' ? 'scenario-btn-active' : ''}`}
+            onClick={() => onTrafficToggle('NORMAL')}
+            id="btn-traffic-normal"
+            title="Switch to Normal Operations Traffic"
+            style={{
+              borderColor: trafficMode === 'NORMAL' ? '#3b82f6' : 'var(--glass-border)',
+              color: trafficMode === 'NORMAL' ? '#3b82f6' : 'var(--text-secondary)',
+              boxShadow: trafficMode === 'NORMAL' ? '0 0 8px rgba(59, 130, 246, 0.2)' : 'none',
+              background: trafficMode === 'NORMAL' ? 'rgba(59, 130, 246, 0.08)' : 'var(--glass-bg)',
+            }}
+          >
+            <span className="scenario-icon">✈️</span>
+            <span className="scenario-name">Normal Ops</span>
+          </button>
+
+          <button
+            className={`scenario-btn ${trafficMode === 'RUSH_HOUR' ? 'scenario-btn-active' : ''}`}
+            onClick={() => onTrafficToggle('RUSH_HOUR')}
+            id="btn-traffic-rush"
+            title="Switch to Peak Rush Hour Traffic"
+            style={{
+              borderColor: trafficMode === 'RUSH_HOUR' ? '#ef4444' : 'var(--glass-border)',
+              color: trafficMode === 'RUSH_HOUR' ? '#ef4444' : 'var(--text-secondary)',
+              boxShadow: trafficMode === 'RUSH_HOUR' ? '0 0 8px rgba(239, 68, 68, 0.2)' : 'none',
+              background: trafficMode === 'RUSH_HOUR' ? 'rgba(239, 68, 68, 0.08)' : 'var(--glass-bg)',
+            }}
+          >
+            <span className="scenario-icon">🔥</span>
+            <span className="scenario-name">Rush Hour</span>
+          </button>
+
+          <button
+            className={`scenario-btn ${trafficMode === 'LIVE_IGI' ? 'scenario-btn-active' : ''}`}
+            onClick={() => onTrafficToggle('LIVE_IGI')}
+            id="btn-traffic-live"
+            title="Fetch and Simulate Live IGI Airspace (OpenSky API)"
+            style={{
+              borderColor: trafficMode === 'LIVE_IGI' ? '#a855f7' : 'var(--glass-border)',
+              color: trafficMode === 'LIVE_IGI' ? '#a855f7' : 'var(--text-secondary)',
+              boxShadow: trafficMode === 'LIVE_IGI' ? '0 0 8px rgba(168, 85, 247, 0.2)' : 'none',
+              background: trafficMode === 'LIVE_IGI' ? 'rgba(168, 85, 247, 0.08)' : 'var(--glass-bg)',
+            }}
+          >
+            <span className="scenario-icon">📡</span>
+            <span className="scenario-name">Live IGI</span>
+          </button>
+        </div>
 
         {/* 2. Weather Toggle */}
         <button

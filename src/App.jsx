@@ -10,6 +10,7 @@ import AgentThinkingFeed from './components/AgentThinkingFeed.jsx';
 import MetricsPanel from './components/MetricsPanel.jsx';
 import ScoreOverlay from './components/ScoreOverlay.jsx';
 import ScenarioControls from './components/ScenarioControls.jsx';
+import { fetchIGIFlights } from './utils/flightApi.js';
 
 export default function App() {
   const engineRef = useRef(null);
@@ -46,6 +47,42 @@ export default function App() {
     };
   }, []);
 
+  // Poll live flights when in LIVE_IGI traffic mode
+  useEffect(() => {
+    if (trafficMode !== 'LIVE_IGI' || !running) return;
+
+    const fetchAndLoad = async () => {
+      const engine = engineRef.current;
+      if (!engine) return;
+
+      try {
+        engine._addNarration('coordinator', 'LIVE_API_FETCH', {
+          msg: 'Connecting to OpenSky IGI Live feed...'
+        });
+        
+        const { flights, source } = await fetchIGIFlights();
+        engine.updateLiveFlights(flights);
+        
+        const count = flights.length;
+        if (source === 'live') {
+          engine._addNarration('coordinator', 'LIVE_API_SUCCESS', {
+            msg: `Loaded ${count} active flights from live radar API`
+          });
+        } else {
+          engine._addNarration('coordinator', 'LIVE_API_FALLBACK', {
+            msg: `Offline/Rate-limit: Loaded ${count} peak-hour DEL flights`
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching live flight data:", err);
+      }
+    };
+
+    fetchAndLoad();
+    const interval = setInterval(fetchAndLoad, 10000);
+    return () => clearInterval(interval);
+  }, [trafficMode, running]);
+
   const updateSimConfig = useCallback((newTraffic, newWeather, newClosedRunways) => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -69,8 +106,11 @@ export default function App() {
     }, 100);
   }, []);
 
-  const handleTrafficToggle = useCallback(() => {
-    const next = trafficMode === 'NORMAL' ? 'RUSH_HOUR' : 'NORMAL';
+  const handleTrafficToggle = useCallback((mode) => {
+    let next = mode;
+    if (typeof next !== 'string') {
+      next = trafficMode === 'NORMAL' ? 'RUSH_HOUR' : (trafficMode === 'RUSH_HOUR' ? 'LIVE_IGI' : 'NORMAL');
+    }
     updateSimConfig(next, weatherMode, closedRunways);
   }, [trafficMode, weatherMode, closedRunways, updateSimConfig]);
 

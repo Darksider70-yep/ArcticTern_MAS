@@ -36,6 +36,7 @@ export default function ScoreOverlay({ score }) {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [score]);
 
   const color = getScoreColor(displayScore);

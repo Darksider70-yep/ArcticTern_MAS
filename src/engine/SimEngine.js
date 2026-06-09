@@ -1,14 +1,13 @@
 // ArcticTern ATC — Simulation Engine
 // Master tick loop coordinating all agents
 
-import { RUNWAYS, GATES } from './Airport.js';
-import { WeatherAgent, WEATHER_STATES } from './agents/WeatherAgent.js';
+import { RUNWAYS } from './Airport.js';
+import { WeatherAgent } from './agents/WeatherAgent.js';
 import { RunwayAgent } from './agents/RunwayAgent.js';
 import { GateAgent } from './agents/GateAgent.js';
 import { TrafficAgent } from './agents/TrafficAgent.js';
 import { FlightAgent, FLIGHT_STATUS } from './agents/FlightAgent.js';
 import { Coordinator } from './agents/Coordinator.js';
-import { getScenario } from './Scenarios.js';
 import { createNarrationEntry } from '../utils/narration.js';
 
 export class SimEngine {
@@ -26,18 +25,19 @@ export class SimEngine {
     this.closedRunways = [...closedRunways];
 
     const isRush = trafficMode === 'RUSH_HOUR';
+    const isLive = trafficMode === 'LIVE_IGI';
     const isStorm = weatherMode === 'STORM';
 
     // 1. Initial flights configuration
-    const initialArrivals = isRush ? 22 : 12;
-    const initialDepartures = isRush ? 14 : 6;
+    const initialArrivals = isRush ? 22 : (isLive ? 0 : 12);
+    const initialDepartures = isRush ? 14 : (isLive ? 0 : 6);
 
     // 2. Spawn rate and limit
     let spawnRate = isRush ? 0.018 : 0.007;
     if (isStorm) {
       spawnRate = isRush ? 0.010 : 0.004; 
     }
-    const maxFlights = isRush ? 48 : 28;
+    const maxFlights = isRush ? 48 : (isLive ? 40 : 28);
 
     this.spawnRate = spawnRate;
     this.maxFlights = maxFlights;
@@ -73,22 +73,24 @@ export class SimEngine {
     }
 
     // Spawn initial flights
-    for (let i = 0; i < initialArrivals; i++) {
-      this.flights.push(new FlightAgent('arrival'));
-    }
-    for (let i = 0; i < initialDepartures; i++) {
-      const f = new FlightAgent('departure');
-      const freeGate = this.gateAgent.gates.find(g => !g.occupied);
-      if (freeGate) {
-        freeGate.occupied = true;
-        freeGate.occupiedBy = f.callsign;
-        freeGate.turnaroundTimer = 30 + Math.random() * 90;
-        freeGate.turnaroundTotal = freeGate.turnaroundTimer;
-        f.x = freeGate.x;
-        f.y = freeGate.y;
-        f.assignedGate = freeGate;
+    if (!isLive) {
+      for (let i = 0; i < initialArrivals; i++) {
+        this.flights.push(new FlightAgent('arrival'));
       }
-      this.flights.push(f);
+      for (let i = 0; i < initialDepartures; i++) {
+        const f = new FlightAgent('departure');
+        const freeGate = this.gateAgent.gates.find(g => !g.occupied);
+        if (freeGate) {
+          freeGate.occupied = true;
+          freeGate.occupiedBy = f.callsign;
+          freeGate.turnaroundTimer = 30 + Math.random() * 90;
+          freeGate.turnaroundTotal = freeGate.turnaroundTimer;
+          f.x = freeGate.x;
+          f.y = freeGate.y;
+          f.assignedGate = freeGate;
+        }
+        this.flights.push(f);
+      }
     }
 
     // Narration feed
@@ -275,14 +277,11 @@ export class SimEngine {
         }
       } else if (runwayDecision.action === 'CLEAR_TAKEOFF' && runwayDecision.callsign) {
         const flight = this.flights.find(f => f.callsign === runwayDecision.callsign);
-        if (flight && flight.status === FLIGHT_STATUS.PARKED) {
-          const gate = this.gateAgent.findGateForFlight(flight.callsign);
-          if (gate) {
-            gate.occupied = false;
-            gate.occupiedBy = null;
-          }
-          const runwayIdx = this.runwayAgent.runways.findIndex(r => r.name === runwayDecision.runway);
-          flight.clearToDepartTaxi(runwayIdx >= 0 ? runwayIdx : 0);
+        if (flight && flight.status === FLIGHT_STATUS.WAITING_FOR_TAKEOFF) {
+          flight.status = FLIGHT_STATUS.DEPARTING;
+          const runway = RUNWAYS[flight.assignedRunway] || RUNWAYS[0];
+          flight.heading = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1) * 180 / Math.PI;
+          flight.speed = flight.baseSpeed * 1.5;
           this._addNarration('runway', 'CLEAR_TAKEOFF', {
             callsign: flight.callsign,
             runway: runwayDecision.runway || '10/28',
@@ -313,12 +312,16 @@ export class SimEngine {
         }
       } else if (gateDecision.action === 'RELEASE' && gateDecision.callsign) {
         this._addNarration('gate', 'RELEASE', gateDecision);
-        // The released flight can now depart
         const flight = this.flights.find(f => f.callsign === gateDecision.callsign);
         if (flight && flight.status === FLIGHT_STATUS.PARKED) {
-          // Add to runway departure queue
+          const gate = this.gateAgent.gates.find(g => g.id === gateDecision.gateId);
+          if (gate) {
+            gate.occupied = false;
+            gate.occupiedBy = null;
+          }
           const bestRunway = this._getBestRunway();
           if (bestRunway !== null) {
+            flight.clearToDepartTaxi(bestRunway);
             this.runwayAgent.addToQueue(bestRunway, {
               callsign: flight.callsign,
               type: 'departure',
@@ -353,7 +356,7 @@ export class SimEngine {
     }
 
     // 8. Spawn new flights
-    if (Math.random() < this.spawnRate && activeFlights.length < this.maxFlights) {
+    if (this.trafficMode !== 'LIVE_IGI' && Math.random() < this.spawnRate && activeFlights.length < this.maxFlights) {
       const type = Math.random() < 0.6 ? 'arrival' : 'departure';
       const newFlight = new FlightAgent(type);
       newFlight.createdAt = this.simTime;
@@ -454,6 +457,20 @@ export class SimEngine {
     }
   }
 
+  updateLiveFlights(liveFlights) {
+    if (this.trafficMode !== 'LIVE_IGI') return;
+
+    for (const realFlight of liveFlights) {
+      const exists = this.flights.some(f => f.callsign === realFlight.callsign);
+      if (!exists) {
+        const newFlight = new FlightAgent(realFlight.type);
+        newFlight.createdAt = this.simTime;
+        newFlight.initRealFlight(realFlight, this.gateAgent.gates);
+        this.flights.push(newFlight);
+      }
+    }
+  }
+
   getSnapshot() {
     const activeFlights = this.flights.filter(f => f.isActive());
     const flightData = this.flights.map(f => f.getData());
@@ -472,6 +489,7 @@ export class SimEngine {
       scenarioName: (() => {
         const labelArr = [];
         if (this.trafficMode === 'RUSH_HOUR') labelArr.push('Rush Hour 🔥');
+        else if (this.trafficMode === 'LIVE_IGI') labelArr.push('Live IGI Space 📡');
         else labelArr.push('Normal ✈️');
         if (this.weatherMode === 'STORM') labelArr.push('Thunderstorm ⛈️');
         else labelArr.push('Clear ☀️');

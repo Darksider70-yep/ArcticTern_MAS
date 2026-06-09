@@ -1,7 +1,7 @@
 // ArcticTern ATC — Metrics Panel
 // Real-time KPI gauges + trend charts using Chart.js
 
-import { useRef, useEffect } from 'react';
+
 import {
   Chart as ChartJS,
   CategoryScale,

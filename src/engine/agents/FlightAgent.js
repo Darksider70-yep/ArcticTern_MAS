@@ -2,7 +2,8 @@
 // Per-aircraft autonomous agent using Q-Learning
 
 import { QTable, discretize, makeStateKey } from '../QLearning.js';
-import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, DEPARTURE_PATHS, RUNWAYS, HOLDING_ZONES } from '../Airport.js';
+import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, RUNWAYS, HOLDING_ZONES, GATES } from '../Airport.js';
+import { mapCoordsToCanvas, getAircraftInfo } from '../../utils/flightApi.js';
 
 const ACTIONS = ['REQUEST_LANDING', 'HOLD_PATTERN', 'DIVERT', 'REQUEST_TAKEOFF', 'TAXI_TO_GATE', 'TAXI_TO_RUNWAY'];
 
@@ -26,6 +27,7 @@ export const FLIGHT_STATUS = {
   TAXIING_TO_GATE: 'TAXIING_TO_GATE',
   PARKED: 'PARKED',
   TAXIING_TO_RUNWAY: 'TAXIING_TO_RUNWAY',
+  WAITING_FOR_TAKEOFF: 'WAITING_FOR_TAKEOFF',
   DEPARTING: 'DEPARTING',
   DEPARTED: 'DEPARTED',
   DIVERTED: 'DIVERTED',
@@ -102,7 +104,7 @@ export class FlightAgent {
     const state = this.getStateKey(weatherSeverity, queuePosition);
     const { action, qValue, wasExploration } = this.qTable.chooseAction(state);
 
-    let reward = 0;
+    let reward;
     let effectiveAction = action;
 
     // Filter invalid actions based on current status
@@ -179,7 +181,7 @@ export class FlightAgent {
         }
         break;
 
-      case FLIGHT_STATUS.HOLDING:
+      case FLIGHT_STATUS.HOLDING: {
         this.delay++;
         this.holdTimer++;
         this.holdAngle += 0.03;
@@ -188,6 +190,7 @@ export class FlightAgent {
         this.y = holdZone.cy + Math.sin(this.holdAngle) * 30;
         this.heading = (this.holdAngle * 180 / Math.PI + 90) % 360;
         break;
+      }
 
       case FLIGHT_STATUS.LANDING: {
         const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
@@ -239,12 +242,16 @@ export class FlightAgent {
 
         this._moveToward(runwayStartX, runwayStartY, 1.5);
         if (this._distanceTo(runwayStartX, runwayStartY) < 15) {
-          this.status = FLIGHT_STATUS.DEPARTING;
+          this.status = FLIGHT_STATUS.WAITING_FOR_TAKEOFF;
           this.heading = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1) * 180 / Math.PI;
-          this.speed = this.baseSpeed * 1.5;
+          this.speed = 0;
         }
         break;
       }
+
+      case FLIGHT_STATUS.WAITING_FOR_TAKEOFF:
+        // Wait at the holding point for takeoff clearance
+        break;
 
       case FLIGHT_STATUS.DEPARTING: {
         const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
@@ -306,6 +313,60 @@ export class FlightAgent {
   clearToDepartTaxi(runwayIndex) {
     this.assignedRunway = runwayIndex;
     this.status = FLIGHT_STATUS.TAXIING_TO_RUNWAY;
+  }
+
+  initRealFlight(realState, gatesList = null) {
+    this.callsign = realState.callsign;
+    const info = getAircraftInfo(this.callsign);
+    this.aircraftType = info.type;
+    this.size = info.size;
+    this.separationClass = info.separationClass;
+    this.fuelRate = info.fuelRate;
+
+    // Convert GPS lat/lon to canvas coordinates
+    const canvasPos = mapCoordsToCanvas(realState.lat, realState.lon);
+    this.x = canvasPos.x;
+    this.y = canvasPos.y;
+    this.heading = realState.heading;
+    this.altitude = realState.altitude;
+
+    // Map velocity to speed
+    const velocity = realState.speed || 100;
+    this.baseSpeed = Math.max(2.5, Math.min(6.0, velocity * 0.04));
+    this.speed = this.baseSpeed;
+
+    this.type = realState.type; // 'arrival' or 'departure'
+    
+    if (this.type === 'arrival') {
+      this.status = FLIGHT_STATUS.APPROACHING;
+      this.targetX = 500;
+      this.targetY = 400;
+    } else {
+      // It's a departure
+      if (realState.onGround) {
+        this.status = FLIGHT_STATUS.PARKED;
+        
+        // Find a gate for this carrier
+        const isLCC = ['6E', 'SG', 'QP'].includes(this.callsign.slice(0, 2));
+        const gates = gatesList || GATES;
+        let gate = gates.find(g => !g.occupied && (isLCC ? (g.id.startsWith('T1') || g.id.startsWith('T2')) : g.id.startsWith('T3')));
+        if (!gate) {
+          gate = gates.find(g => !g.occupied);
+        }
+        
+        if (gate) {
+          gate.occupied = true;
+          gate.occupiedBy = this.callsign;
+          gate.turnaroundTimer = 30 + Math.random() * 90;
+          gate.turnaroundTotal = gate.turnaroundTimer;
+          this.x = gate.x;
+          this.y = gate.y;
+          this.assignedGate = gate;
+        }
+      } else {
+        this.status = FLIGHT_STATUS.DEPARTING;
+      }
+    }
   }
 
   getData() {
