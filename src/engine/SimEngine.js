@@ -13,29 +13,40 @@ import { createNarrationEntry } from '../utils/narration.js';
 
 export class SimEngine {
   constructor() {
-    this.reset('NORMAL');
+    this.reset();
   }
 
-  reset(scenarioId, options = {}) {
-    const baseScenario = getScenario(scenarioId);
-    const scenario = JSON.parse(JSON.stringify(baseScenario));
+  reset(options = {}) {
+    const trafficMode = options.traffic || 'NORMAL';
+    const weatherMode = options.weather || 'CLEAR';
+    const closedRunways = options.closedRunways || [];
 
-    // Custom runway closure selection (support array of closed runway indices)
-    if (scenarioId === 'RUNWAY_CLOSURE' && options.closedRunways !== undefined) {
-      scenario.runways.closedRunways = options.closedRunways;
-      scenario.runways.bothActive = (options.closedRunways.length === 0);
-    } else if (scenarioId === 'RUNWAY_CLOSURE') {
-      scenario.runways.closedRunways = [1]; // Default to close 10/28
-      scenario.runways.bothActive = false;
+    this.trafficMode = trafficMode;
+    this.weatherMode = weatherMode;
+    this.closedRunways = [...closedRunways];
+
+    const isRush = trafficMode === 'RUSH_HOUR';
+    const isStorm = weatherMode === 'STORM';
+
+    // 1. Initial flights configuration
+    const initialArrivals = isRush ? 22 : 12;
+    const initialDepartures = isRush ? 14 : 6;
+
+    // 2. Spawn rate and limit
+    let spawnRate = isRush ? 0.018 : 0.007;
+    if (isStorm) {
+      spawnRate = isRush ? 0.010 : 0.004; 
     }
+    const maxFlights = isRush ? 48 : 28;
 
-    this.scenario = scenario;
-    this.scenarioId = scenarioId;
+    this.spawnRate = spawnRate;
+    this.maxFlights = maxFlights;
+    this.scenarioId = `${trafficMode}_${weatherMode}`;
 
     // Time
     this.simTime = 14 * 3600; // Start at 14:00:00
     this.tickCount = 0;
-    this.speed = 1;          // 1x, 5x, 10x
+    this.speed = this.speed || 1;          
     this.running = false;
     this.lastFrameTime = 0;
 
@@ -47,31 +58,26 @@ export class SimEngine {
     this.coordinator = new Coordinator();
     this.flights = [];
 
-    // Apply scenario weather
-    if (scenario.weather.forced) {
-      this.weatherAgent.forceWeather(scenario.weather.initial);
+    // Apply weather
+    if (isStorm) {
+      this.weatherAgent.forceWeather('STORM');
+    } else {
+      this.weatherAgent.forceWeather('CLEAR');
     }
 
     // Apply runway config
-    if (!scenario.runways.bothActive) {
-      if (Array.isArray(scenario.runways.closedRunways)) {
-        for (const idx of scenario.runways.closedRunways) {
-          if (this.runwayAgent.runways[idx]) {
-            this.runwayAgent.runways[idx].active = false;
-          }
-        }
-      } else if (scenario.runways.closedRunway !== null && scenario.runways.closedRunway !== undefined) {
-        this.runwayAgent.runways[scenario.runways.closedRunway].active = false;
+    for (const idx of closedRunways) {
+      if (this.runwayAgent.runways[idx]) {
+        this.runwayAgent.runways[idx].active = false;
       }
     }
 
     // Spawn initial flights
-    for (let i = 0; i < scenario.initialFlights.arrivals; i++) {
+    for (let i = 0; i < initialArrivals; i++) {
       this.flights.push(new FlightAgent('arrival'));
     }
-    for (let i = 0; i < scenario.initialFlights.departures; i++) {
+    for (let i = 0; i < initialDepartures; i++) {
       const f = new FlightAgent('departure');
-      // Assign to random gate
       const freeGate = this.gateAgent.gates.find(g => !g.occupied);
       if (freeGate) {
         freeGate.occupied = true;
@@ -100,13 +106,11 @@ export class SimEngine {
       timestamps: [],
     };
 
-    // Listeners — preserve across resets (only init once)
     if (!this.listeners) this.listeners = {};
 
-    // Add initial narration
     this._addNarration('coordinator', 'SCHEDULE_UPDATE', {
-      arrivals: scenario.initialFlights.arrivals,
-      departures: scenario.initialFlights.departures,
+      arrivals: initialArrivals,
+      departures: initialDepartures,
       score: 75,
     });
   }
@@ -349,7 +353,7 @@ export class SimEngine {
     }
 
     // 8. Spawn new flights
-    if (Math.random() < this.scenario.spawnRate && activeFlights.length < this.scenario.maxFlights) {
+    if (Math.random() < this.spawnRate && activeFlights.length < this.maxFlights) {
       const type = Math.random() < 0.6 ? 'arrival' : 'departure';
       const newFlight = new FlightAgent(type);
       newFlight.createdAt = this.simTime;
@@ -465,7 +469,17 @@ export class SimEngine {
       speed: this.speed,
       running: this.running,
       scenarioId: this.scenarioId,
-      scenarioName: this.scenario.name,
+      scenarioName: (() => {
+        const labelArr = [];
+        if (this.trafficMode === 'RUSH_HOUR') labelArr.push('Rush Hour 🔥');
+        else labelArr.push('Normal ✈️');
+        if (this.weatherMode === 'STORM') labelArr.push('Thunderstorm ⛈️');
+        else labelArr.push('Clear ☀️');
+        if (this.closedRunways && this.closedRunways.length > 0) {
+          labelArr.push(`${this.closedRunways.length} Closed 🚧`);
+        }
+        return labelArr.join(' + ');
+      })(),
 
       flights: flightData,
       activeFlightCount: activeFlights.length,

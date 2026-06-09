@@ -14,10 +14,11 @@ import ScenarioControls from './components/ScenarioControls.jsx';
 export default function App() {
   const engineRef = useRef(null);
   const [snapshot, setSnapshot] = useState(null);
-  const [currentScenario, setCurrentScenario] = useState('NORMAL');
+  const [trafficMode, setTrafficMode] = useState('NORMAL'); // 'NORMAL' or 'RUSH_HOUR'
+  const [weatherMode, setWeatherMode] = useState('CLEAR');  // 'CLEAR' or 'STORM'
+  const [closedRunways, setClosedRunways] = useState([]);   // Array of closed indices
   const [speed, setSpeed] = useState(1);
   const [running, setRunning] = useState(false);
-  const [closedRunways, setClosedRunways] = useState([1]); // Default to close 10/28 (index 1)
 
   // Initialize engine (handles StrictMode double-mount)
   useEffect(() => {
@@ -45,17 +46,20 @@ export default function App() {
     };
   }, []);
 
-  const handleScenarioChange = useCallback((scenarioId, customClosedRunways = null) => {
+  const updateSimConfig = useCallback((newTraffic, newWeather, newClosedRunways) => {
     const engine = engineRef.current;
     if (!engine) return;
 
-    const targetClosedRunways = customClosedRunways !== null ? customClosedRunways : closedRunways;
-
     engine.pause();
-    engine.reset(scenarioId, {
-      closedRunways: scenarioId === 'RUNWAY_CLOSURE' ? targetClosedRunways : []
+    engine.reset({
+      traffic: newTraffic,
+      weather: newWeather,
+      closedRunways: newClosedRunways
     });
-    setCurrentScenario(scenarioId);
+    
+    setTrafficMode(newTraffic);
+    setWeatherMode(newWeather);
+    setClosedRunways(newClosedRunways);
     setSnapshot(engine.getSnapshot());
 
     // Restart
@@ -63,17 +67,24 @@ export default function App() {
       engine.start();
       setRunning(true);
     }, 100);
-  }, [closedRunways]);
+  }, []);
+
+  const handleTrafficToggle = useCallback(() => {
+    const next = trafficMode === 'NORMAL' ? 'RUSH_HOUR' : 'NORMAL';
+    updateSimConfig(next, weatherMode, closedRunways);
+  }, [trafficMode, weatherMode, closedRunways, updateSimConfig]);
+
+  const handleWeatherToggle = useCallback(() => {
+    const next = weatherMode === 'CLEAR' ? 'STORM' : 'CLEAR';
+    updateSimConfig(trafficMode, next, closedRunways);
+  }, [trafficMode, weatherMode, closedRunways, updateSimConfig]);
 
   const handleClosedRunwayToggle = useCallback((index) => {
-    setClosedRunways(prev => {
-      const next = prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index];
-      handleScenarioChange('RUNWAY_CLOSURE', next);
-      return next;
-    });
-  }, [handleScenarioChange]);
+    const next = closedRunways.includes(index)
+      ? closedRunways.filter(i => i !== index)
+      : [...closedRunways, index];
+    updateSimConfig(trafficMode, weatherMode, next);
+  }, [trafficMode, weatherMode, closedRunways, updateSimConfig]);
 
   const handleSpeedChange = useCallback((newSpeed) => {
     const engine = engineRef.current;
@@ -96,8 +107,8 @@ export default function App() {
   }, []);
 
   const handleReset = useCallback(() => {
-    handleScenarioChange(currentScenario);
-  }, [currentScenario, handleScenarioChange]);
+    updateSimConfig(trafficMode, weatherMode, closedRunways);
+  }, [trafficMode, weatherMode, closedRunways, updateSimConfig]);
 
   return (
     <div className="app" id="app-root">
@@ -119,15 +130,17 @@ export default function App() {
 
           {/* Scenario Controls */}
           <ScenarioControls
-            currentScenario={currentScenario}
+            trafficMode={trafficMode}
+            weatherMode={weatherMode}
+            closedRunways={closedRunways}
             speed={speed}
             running={running}
-            onScenarioChange={handleScenarioChange}
+            onTrafficToggle={handleTrafficToggle}
+            onWeatherToggle={handleWeatherToggle}
+            onClosedRunwayToggle={handleClosedRunwayToggle}
             onSpeedChange={handleSpeedChange}
             onTogglePlay={handleTogglePlay}
             onReset={handleReset}
-            closedRunways={closedRunways}
-            onClosedRunwayToggle={handleClosedRunwayToggle}
           />
         </section>
 
