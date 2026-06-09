@@ -1,7 +1,7 @@
 // ArcticTern ATC — Flight Agent
 // Per-aircraft autonomous agent using Q-Learning
 
-import { QTable, DeepQNetwork } from '../QLearning.js';
+import { DeepQNetwork } from '../QLearning.js';
 import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, RUNWAYS, HOLDING_ZONES, GATES } from '../Airport.js';
 import { mapCoordsToCanvas, getAircraftInfo } from '../../utils/flightApi.js';
 
