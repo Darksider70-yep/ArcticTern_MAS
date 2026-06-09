@@ -89,7 +89,13 @@ export default function App() {
       <Navbar snapshot={snapshot} />
 
       <main className="main-layout">
-        {/* Left: Airport Canvas + Score */}
+        {/* Left Sidebar: Dashboard Panels */}
+        <aside className="dashboard-section sidebar-left">
+          <AgentDashboard snapshot={snapshot} />
+          <MetricsPanel snapshot={snapshot} />
+        </aside>
+
+        {/* Center: Airport Canvas + Score */}
         <section className="canvas-section">
           <div className="canvas-wrapper">
             <AirportCanvas snapshot={snapshot} />
@@ -108,15 +114,11 @@ export default function App() {
           />
         </section>
 
-        {/* Right: Dashboard Panels */}
-        <aside className="dashboard-section">
-          <AgentDashboard snapshot={snapshot} />
-          <MetricsPanel snapshot={snapshot} />
+        {/* Right Sidebar: Thinking Feed */}
+        <aside className="dashboard-section sidebar-right">
+          <AgentThinkingFeed narrationLog={snapshot?.narrationLog} />
         </aside>
       </main>
-
-      {/* Bottom: Thinking Feed */}
-      <AgentThinkingFeed narrationLog={snapshot?.narrationLog} />
     </div>
   );
 }

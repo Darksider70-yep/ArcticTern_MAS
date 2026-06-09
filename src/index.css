@@ -227,7 +227,6 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  border-right: 1px solid var(--glass-border);
 }
 
 .canvas-wrapper {
@@ -237,8 +236,17 @@ body {
   overflow: hidden;
 }
 
+.sidebar-left {
+  width: 260px;
+  border-right: 1px solid var(--glass-border);
+}
+
+.sidebar-right {
+  width: 260px;
+  border-left: 1px solid var(--glass-border);
+}
+
 .dashboard-section {
-  width: 340px;
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -358,7 +366,7 @@ body {
 
 .agent-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 8px;
   padding: 0 12px 12px;
 }
@@ -643,11 +651,9 @@ body {
 
 /* ───── Thinking Feed ───── */
 .thinking-feed {
-  flex-shrink: 0;
-  height: 140px;
+  flex: 1;
   background: rgba(10, 14, 23, 0.9);
   backdrop-filter: blur(12px);
-  border-top: 1px solid var(--glass-border);
   display: flex;
   flex-direction: column;
 }
