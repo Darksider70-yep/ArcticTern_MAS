@@ -16,8 +16,16 @@ export class SimEngine {
     this.reset('NORMAL');
   }
 
-  reset(scenarioId) {
-    const scenario = getScenario(scenarioId);
+  reset(scenarioId, options = {}) {
+    const baseScenario = getScenario(scenarioId);
+    const scenario = JSON.parse(JSON.stringify(baseScenario));
+
+    // Custom runway closure selection
+    if (scenarioId === 'RUNWAY_CLOSURE' && options.closedRunway !== undefined) {
+      scenario.runways.closedRunway = options.closedRunway;
+      scenario.runways.bothActive = (options.closedRunway === null);
+    }
+
     this.scenario = scenario;
     this.scenarioId = scenarioId;
 

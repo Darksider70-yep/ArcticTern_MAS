@@ -17,6 +17,7 @@ export default function App() {
   const [currentScenario, setCurrentScenario] = useState('NORMAL');
   const [speed, setSpeed] = useState(1);
   const [running, setRunning] = useState(false);
+  const [closedRunwayIndex, setClosedRunwayIndex] = useState(1); // Default to 1 (10/28)
 
   // Initialize engine (handles StrictMode double-mount)
   useEffect(() => {
@@ -44,12 +45,16 @@ export default function App() {
     };
   }, []);
 
-  const handleScenarioChange = useCallback((scenarioId) => {
+  const handleScenarioChange = useCallback((scenarioId, customClosedRunwayIndex = null) => {
     const engine = engineRef.current;
     if (!engine) return;
 
+    const targetClosedRunway = customClosedRunwayIndex !== null ? customClosedRunwayIndex : closedRunwayIndex;
+
     engine.pause();
-    engine.reset(scenarioId);
+    engine.reset(scenarioId, {
+      closedRunway: scenarioId === 'RUNWAY_CLOSURE' ? targetClosedRunway : null
+    });
     setCurrentScenario(scenarioId);
     setSnapshot(engine.getSnapshot());
 
@@ -58,7 +63,12 @@ export default function App() {
       engine.start();
       setRunning(true);
     }, 100);
-  }, []);
+  }, [closedRunwayIndex]);
+
+  const handleClosedRunwayChange = useCallback((index) => {
+    setClosedRunwayIndex(index);
+    handleScenarioChange('RUNWAY_CLOSURE', index);
+  }, [handleScenarioChange]);
 
   const handleSpeedChange = useCallback((newSpeed) => {
     const engine = engineRef.current;
@@ -111,6 +121,8 @@ export default function App() {
             onSpeedChange={handleSpeedChange}
             onTogglePlay={handleTogglePlay}
             onReset={handleReset}
+            closedRunwayIndex={closedRunwayIndex}
+            onClosedRunwayChange={handleClosedRunwayChange}
           />
         </section>
 
