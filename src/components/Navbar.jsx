@@ -16,7 +16,7 @@ export default function Navbar({ snapshot }) {
     <nav className="navbar" id="navbar">
       <div className="nav-brand">
         <span className="nav-logo">✈</span>
-        <span className="nav-title">DEL IGI Airport</span>
+        <span className="nav-title">ArcticTern</span>
         <span className="nav-subtitle">ATC Operations</span>
       </div>
 
