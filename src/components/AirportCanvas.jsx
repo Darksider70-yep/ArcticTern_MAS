@@ -109,22 +109,7 @@ function drawStaticLayer(ctx) {
     ctx.stroke();
   }
 
-  // Concentric Radar Range Rings (centered at DPN VOR 480, 360)
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 10]);
-  for (const radius of [120, 240, 360, 480, 600]) {
-    ctx.beginPath();
-    ctx.arc(480, 360, radius, 0, Math.PI * 2);
-    ctx.stroke();
 
-    // Radar distance markers (NM equivalent)
-    ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
-    ctx.font = '7px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${Math.round(radius / 20)}NM`, 485, 360 - radius + 3);
-  }
-  ctx.setLineDash([]);
 
   // Airspace VOR and FIX waypoints
   for (const wp of WAYPOINTS) {
@@ -268,18 +253,17 @@ function drawStaticLayer(ctx) {
       ctx.strokeStyle = COLORS.terminalOutline;
       ctx.lineWidth = 2;
       // Pier 1
-      ctx.fillRect(340, 435, 15, 30);
-      ctx.strokeRect(340, 435, 15, 30);
+      ctx.fillRect(235, 480, 20, 25);
+      ctx.strokeRect(235, 480, 20, 25);
       // Pier 2
-      ctx.fillRect(450, 435, 15, 30);
-      ctx.strokeRect(450, 435, 15, 30);
+      ctx.fillRect(295, 480, 20, 25);
+      ctx.strokeRect(295, 480, 20, 25);
       // Pier 3
-      ctx.fillRect(560, 435, 15, 30);
-      ctx.strokeRect(560, 435, 15, 30);
-    } else if (term.id === 'T1') {
-      ctx.beginPath();
-      ctx.arc(700, 240, 15, Math.PI, Math.PI * 1.5);
-      ctx.stroke();
+      ctx.fillRect(355, 480, 20, 25);
+      ctx.strokeRect(355, 480, 20, 25);
+      // Pier 4
+      ctx.fillRect(415, 480, 20, 25);
+      ctx.strokeRect(415, 480, 20, 25);
     }
 
     // Terminal label
@@ -344,35 +328,7 @@ function drawStaticLayer(ctx) {
 function drawDynamicLayer(ctx, snapshot) {
   if (!snapshot) return;
 
-  // Radar sweep animation (Centered at VOR: 480, 360)
-  if (!window.radarSweepAngle) window.radarSweepAngle = 0;
-  window.radarSweepAngle = (window.radarSweepAngle + 0.008) % (Math.PI * 2);
 
-  ctx.save();
-  ctx.translate(480, 360);
-  ctx.rotate(window.radarSweepAngle);
-
-  // Fade radial wedge
-  const sweepGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 600);
-  sweepGrad.addColorStop(0, 'rgba(34, 211, 238, 0.12)');
-  sweepGrad.addColorStop(0.2, 'rgba(34, 211, 238, 0.04)');
-  sweepGrad.addColorStop(1, 'rgba(34, 211, 238, 0)');
-
-  ctx.fillStyle = sweepGrad;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.arc(0, 0, 600, -0.22, 0);
-  ctx.closePath();
-  ctx.fill();
-
-  // Sweep leading beam
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(600, 0);
-  ctx.stroke();
-  ctx.restore();
 
   // Weather overlay
   if (snapshot.weather && snapshot.weather.stormCell) {

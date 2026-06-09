@@ -10,76 +10,76 @@ export const RUNWAYS = [
   {
     id: '09/27',
     name: '09/27',
-    x1: 150, y1: 150,
-    x2: 800, y2: 160,
+    x1: 450, y1: 150,
+    x2: 950, y2: 158,
     width: 12,
     active: true,
-    direction: 0.8, // degrees slant
+    direction: 0.8,
   },
   {
     id: '10/28',
     name: '10/28',
-    x1: 100, y1: 300,
-    x2: 900, y2: 340,
+    x1: 200, y1: 300,
+    x2: 850, y2: 350,
     width: 12,
     active: true,
-    direction: 2.5,
+    direction: 4.0,
   },
   {
     id: '11L/29R',
     name: '11L/29R',
-    x1: 80, y1: 520,
-    x2: 880, y2: 590,
+    x1: 100, y1: 520,
+    x2: 850, y2: 590,
     width: 12,
     active: true,
-    direction: 4.8,
+    direction: 5.3,
   },
   {
     id: '11R/29L',
     name: '11R/29L',
-    x1: 80, y1: 650,
-    x2: 880, y2: 720,
+    x1: 100, y1: 650,
+    x2: 850, y2: 720,
     width: 12,
     active: true,
-    direction: 4.8,
+    direction: 5.3,
   },
+];
+
+// Terminals bounding boxes & realistic layout polygons
+export const TERMINALS = [
+  { id: 'T1', name: 'TERMINAL 1 (LCC)', x: 700, y: 190, width: 140, height: 35 },
+  { id: 'T2', name: 'TERMINAL 2', x: 300, y: 380, width: 100, height: 30 },
+  { id: 'T3', name: 'TERMINAL 3', x: 180, y: 440, width: 220, height: 40 },
 ];
 
 // Gate positions (along T1, T2, T3 terminals)
 export const GATES = [
   // Terminal 1 Gates (Domestic LCC, Top Right)
-  { id: 'T1-1', x: 710, y: 220, occupied: false, angle: -90, terminal: 'T1' },
-  { id: 'T1-2', x: 740, y: 220, occupied: false, angle: -90, terminal: 'T1' },
-  { id: 'T1-3', x: 770, y: 220, occupied: false, angle: -90, terminal: 'T1' },
-  { id: 'T1-4', x: 800, y: 220, occupied: false, angle: -90, terminal: 'T1' },
+  { id: 'T1-1', x: 710, y: 190, occupied: false, angle: -90, terminal: 'T1' },
+  { id: 'T1-2', x: 750, y: 190, occupied: false, angle: -90, terminal: 'T1' },
+  { id: 'T1-3', x: 790, y: 190, occupied: false, angle: -90, terminal: 'T1' },
+  { id: 'T1-4', x: 830, y: 190, occupied: false, angle: -90, terminal: 'T1' },
 
   // Terminal 2 Gates (Domestic, Middle Left)
-  { id: 'T2-1', x: 190, y: 400, occupied: false, angle: -90, terminal: 'T2' },
-  { id: 'T2-2', x: 220, y: 400, occupied: false, angle: -90, terminal: 'T2' },
-  { id: 'T2-3', x: 250, y: 400, occupied: false, angle: -90, terminal: 'T2' },
+  { id: 'T2-1', x: 310, y: 380, occupied: false, angle: -90, terminal: 'T2' },
+  { id: 'T2-2', x: 350, y: 380, occupied: false, angle: -90, terminal: 'T2' },
+  { id: 'T2-3', x: 390, y: 380, occupied: false, angle: -90, terminal: 'T2' },
 
-  // Terminal 3 Gates (International & Full Service Hub, Middle-Left to Center)
+  // Terminal 3 Gates (International & Full Service Hub)
   // Positioned along the piers of T3
-  { id: 'T3-1', x: 330, y: 440, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-2', x: 360, y: 440, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-3', x: 400, y: 460, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-4', x: 430, y: 460, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-5', x: 480, y: 460, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-6', x: 510, y: 460, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-7', x: 560, y: 440, occupied: false, angle: -90, terminal: 'T3' },
-  { id: 'T3-8', x: 590, y: 440, occupied: false, angle: -90, terminal: 'T3' },
-];
-
-// Terminals bounding boxes & realistic layout polygons
-export const TERMINALS = [
-  { id: 'T1', name: 'TERMINAL 1 (LCC)', x: 700, y: 225, width: 120, height: 30 },
-  { id: 'T2', name: 'TERMINAL 2', x: 180, y: 405, width: 90, height: 30 },
-  { id: 'T3', name: 'TERMINAL 3', x: 320, y: 405, width: 290, height: 30 },
+  { id: 'T3-1', x: 230, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-2', x: 250, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-3', x: 290, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-4', x: 310, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-5', x: 350, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-6', x: 370, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-7', x: 410, y: 480, occupied: false, angle: -90, terminal: 'T3' },
+  { id: 'T3-8', x: 430, y: 480, occupied: false, angle: -90, terminal: 'T3' },
 ];
 
 // Real airspace waypoints surrounding IGI Delhi Airport
 export const WAYPOINTS = [
-  { id: 'DPN VOR', x: 480, y: 360, type: 'VOR', name: 'PALAM VOR' },
+  { id: 'DPN VOR', x: 500, y: 400, type: 'VOR', name: 'PALAM VOR' },
   { id: 'RESA', x: 500, y: 80, type: 'FIX', name: 'RESA N' },
   { id: 'ELKAS', x: 150, y: 220, type: 'FIX', name: 'ELKAS W' },
   { id: 'IBROX', x: 850, y: 620, type: 'FIX', name: 'IBROX E' },
@@ -89,42 +89,40 @@ export const WAYPOINTS = [
 // Taxiway network nodes matching the slanted runways and Eastern Cross Taxiways (ECT)
 export const TAXIWAY_NODES = [
   // Runway 1 (09/27) exit points
-  { id: 'R1E1', x: 450, y: 155 },
-  { id: 'R1E2', x: 700, y: 158 },
+  { id: 'R1E1', x: 550, y: 151 },
+  { id: 'R1E2', x: 850, y: 156 },
   // Runway 2 (10/28) exit points
-  { id: 'R2E1', x: 300, y: 310 },
-  { id: 'R2E2', x: 700, y: 330 },
+  { id: 'R2E1', x: 300, y: 307 },
+  { id: 'R2E2', x: 750, y: 342 },
   // Runway 3 (11L/29R) exit points
-  { id: 'R3E1', x: 300, y: 539 },
-  { id: 'R3E2', x: 700, y: 574 },
+  { id: 'R3E1', x: 200, y: 530 },
+  { id: 'R3E2', x: 750, y: 580 },
   // Runway 4 (11R/29L) exit points
-  { id: 'R4E1', x: 300, y: 669 },
-  { id: 'R4E2', x: 700, y: 704 },
+  { id: 'R4E1', x: 200, y: 660 },
+  { id: 'R4E2', x: 750, y: 710 },
 
-  // Eastern Cross Taxiway Nodes (ECT) - Parallel vertical bridge tracks
-  { id: 'ECT_N1', x: 820, y: 170 },
-  { id: 'ECT_M1', x: 820, y: 430 },
-  { id: 'ECT_S1', x: 820, y: 630 },
-  { id: 'ECT_N2', x: 840, y: 170 },
-  { id: 'ECT_M2', x: 840, y: 430 },
-  { id: 'ECT_S2', x: 840, y: 630 },
+  // Eastern Cross Taxiway Nodes (ECT)
+  { id: 'ECT_N1', x: 880, y: 160 },
+  { id: 'ECT_M1', x: 880, y: 350 },
+  { id: 'ECT_S1', x: 880, y: 600 },
+  { id: 'ECT_N2', x: 910, y: 160 },
+  { id: 'ECT_M2', x: 910, y: 350 },
+  { id: 'ECT_S2', x: 910, y: 600 },
 
   // Terminal junction nodes
-  { id: 'J_T1', x: 750, y: 200 },
-  { id: 'J_T2', x: 220, y: 370 },
-  { id: 'J_T3_W', x: 380, y: 380 },
-  { id: 'J_T3_E', x: 540, y: 380 },
-  { id: 'J_C1', x: 450, y: 260 },
-  { id: 'J_C2', x: 450, y: 490 },
+  { id: 'J_T1', x: 770, y: 240 },
+  { id: 'J_T2', x: 350, y: 350 },
+  { id: 'J_T3', x: 290, y: 510 },
+  { id: 'J_C1', x: 550, y: 326 },
+  { id: 'J_C2', x: 550, y: 563 },
 ];
 
 // Taxiway connections (edges)
 export const TAXIWAY_EDGES = [
   // Runway connections
   ['R1E1', 'J_C1'], ['R1E2', 'J_T1'],
-  ['R2E1', 'J_C1'], ['R2E1', 'J_T2'],
-  ['R2E2', 'J_T3_E'], ['R2E2', 'ECT_M1'],
-  ['R3E1', 'J_C2'], ['R3E2', 'ECT_M2'],
+  ['R2E1', 'J_T2'], ['R2E2', 'J_C1'], ['R2E2', 'ECT_M1'],
+  ['R3E1', 'J_T3'], ['R3E2', 'J_C2'], ['R3E2', 'ECT_M2'],
   ['R4E1', 'J_C2'], ['R4E2', 'ECT_S2'],
 
   // ECT Vertical Bridges
@@ -133,8 +131,9 @@ export const TAXIWAY_EDGES = [
 
   // Cross connections
   ['J_T1', 'ECT_N1'], ['J_T1', 'ECT_N2'],
-  ['J_T2', 'J_T3_W'], ['J_T3_W', 'J_T3_E'],
-  ['J_C1', 'J_T2'], ['J_C2', 'J_T3_W'],
+  ['J_T2', 'J_T3'],
+  ['J_C1', 'J_T2'], ['J_C2', 'J_T3'],
+  ['J_C1', 'J_C2'],
 ];
 
 // Approach paths (where aircraft enter the map)
