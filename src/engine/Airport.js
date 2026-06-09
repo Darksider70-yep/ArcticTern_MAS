@@ -1,5 +1,5 @@
 // ArcticTern ATC — Airport Static Model (Delhi IGI Airport DEL)
-// Defines the physical layout: slanted runways, taxiways, gates, approach paths
+// Defines the physical layout: slanted runways, taxiways, gates, approach paths, waypoints
 
 export const AIRPORT_WIDTH = 1000;
 export const AIRPORT_HEIGHT = 800;
@@ -70,11 +70,20 @@ export const GATES = [
   { id: 'T3-8', x: 590, y: 440, occupied: false, angle: -90, terminal: 'T3' },
 ];
 
-// Terminals bounding boxes
+// Terminals bounding boxes & realistic layout polygons
 export const TERMINALS = [
   { id: 'T1', name: 'TERMINAL 1 (LCC)', x: 700, y: 225, width: 120, height: 30 },
   { id: 'T2', name: 'TERMINAL 2', x: 180, y: 405, width: 90, height: 30 },
   { id: 'T3', name: 'TERMINAL 3', x: 320, y: 405, width: 290, height: 30 },
+];
+
+// Real airspace waypoints surrounding IGI Delhi Airport
+export const WAYPOINTS = [
+  { id: 'DPN VOR', x: 480, y: 360, type: 'VOR', name: 'PALAM VOR' },
+  { id: 'RESA', x: 500, y: 80, type: 'FIX', name: 'RESA N' },
+  { id: 'ELKAS', x: 150, y: 220, type: 'FIX', name: 'ELKAS W' },
+  { id: 'IBROX', x: 850, y: 620, type: 'FIX', name: 'IBROX E' },
+  { id: 'SAMAR', x: 500, y: 760, type: 'FIX', name: 'SAMAR S' },
 ];
 
 // Taxiway network nodes matching the slanted runways and Eastern Cross Taxiways (ECT)

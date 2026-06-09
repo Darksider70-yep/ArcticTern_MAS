@@ -3,7 +3,7 @@
 // Dynamic layer: aircraft, trails, weather, conflicts
 
 import { useRef, useEffect, useCallback } from 'react';
-import { RUNWAYS, GATES, TERMINALS, TAXIWAY_NODES, TAXIWAY_EDGES, HOLDING_ZONES, AIRPORT_WIDTH, AIRPORT_HEIGHT } from '../engine/Airport.js';
+import { RUNWAYS, GATES, TERMINALS, WAYPOINTS, TAXIWAY_NODES, TAXIWAY_EDGES, HOLDING_ZONES, AIRPORT_WIDTH, AIRPORT_HEIGHT } from '../engine/Airport.js';
 import { COLORS } from '../utils/colors.js';
 
 export default function AirportCanvas({ snapshot }) {
@@ -53,6 +53,8 @@ export default function AirportCanvas({ snapshot }) {
     ctx.clearRect(0, 0, AIRPORT_WIDTH, AIRPORT_HEIGHT);
 
     drawDynamicLayer(ctx, snapshot);
+    const animationFrame = requestAnimationFrame(() => drawDynamicLayer(ctx, snapshot));
+    return () => cancelAnimationFrame(animationFrame);
   }, [snapshot, getScale]);
 
   // Redraw static on resize
@@ -105,6 +107,64 @@ function drawStaticLayer(ctx) {
     ctx.moveTo(0, y);
     ctx.lineTo(AIRPORT_WIDTH, y);
     ctx.stroke();
+  }
+
+  // Concentric Radar Range Rings (centered at DPN VOR 480, 360)
+  ctx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5, 10]);
+  for (const radius of [120, 240, 360, 480, 600]) {
+    ctx.beginPath();
+    ctx.arc(480, 360, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Radar distance markers (NM equivalent)
+    ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
+    ctx.font = '7px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${Math.round(radius / 20)}NM`, 485, 360 - radius + 3);
+  }
+  ctx.setLineDash([]);
+
+  // Airspace VOR and FIX waypoints
+  for (const wp of WAYPOINTS) {
+    ctx.save();
+    ctx.translate(wp.x, wp.y);
+
+    if (wp.type === 'VOR') {
+      ctx.strokeStyle = 'rgba(34, 211, 238, 0.6)';
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const angle = i * Math.PI / 3;
+        ctx.lineTo(Math.cos(angle) * 7, Math.sin(angle) * 7);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(34, 211, 238, 0.8)';
+      ctx.beginPath();
+      ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, -6);
+      ctx.lineTo(5, 3);
+      ctx.lineTo(-5, 3);
+      ctx.closePath();
+      ctx.stroke();
+    }
+
+    // Waypoint text
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(wp.id, 0, 14);
+    ctx.restore();
   }
 
   // Grass areas (dark green tint)
@@ -284,6 +344,36 @@ function drawStaticLayer(ctx) {
 function drawDynamicLayer(ctx, snapshot) {
   if (!snapshot) return;
 
+  // Radar sweep animation (Centered at VOR: 480, 360)
+  if (!window.radarSweepAngle) window.radarSweepAngle = 0;
+  window.radarSweepAngle = (window.radarSweepAngle + 0.008) % (Math.PI * 2);
+
+  ctx.save();
+  ctx.translate(480, 360);
+  ctx.rotate(window.radarSweepAngle);
+
+  // Fade radial wedge
+  const sweepGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 600);
+  sweepGrad.addColorStop(0, 'rgba(34, 211, 238, 0.12)');
+  sweepGrad.addColorStop(0.2, 'rgba(34, 211, 238, 0.04)');
+  sweepGrad.addColorStop(1, 'rgba(34, 211, 238, 0)');
+
+  ctx.fillStyle = sweepGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, 600, -0.22, 0);
+  ctx.closePath();
+  ctx.fill();
+
+  // Sweep leading beam
+  ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(600, 0);
+  ctx.stroke();
+  ctx.restore();
+
   // Weather overlay
   if (snapshot.weather && snapshot.weather.stormCell) {
     drawStormCell(ctx, snapshot.weather.stormCell);
@@ -459,18 +549,40 @@ function drawAircraft(ctx, flight) {
   ctx.shadowBlur = 0;
   ctx.restore();
 
-  // Callsign label (for airborne aircraft)
+  // ATC Flight Data Block with leader line
   if (status !== 'PARKED' && status !== 'TAXIING_TO_GATE' && status !== 'TAXIING_TO_RUNWAY') {
-    ctx.fillStyle = 'rgba(241, 245, 249, 0.8)';
-    ctx.font = '8px JetBrains Mono, monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(callsign, x + s + 4, y - 4);
+    const tagX = x + (x < 500 ? -45 : 45);
+    const tagY = y - 30;
 
-    // Altitude for airborne
-    if (flight.altitude > 0) {
-      ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
-      ctx.fillText(`${Math.round(flight.altitude)}ft`, x + s + 4, y + 6);
-    }
+    // Leader line
+    ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(tagX + (x < 500 ? 35 : -35), tagY + 10);
+    ctx.stroke();
+
+    // Data container panel
+    ctx.fillStyle = 'rgba(10, 15, 25, 0.85)';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.fillRect(tagX - 35, tagY - 10, 70, 26);
+    ctx.strokeRect(tagX - 35, tagY - 10, 70, 26);
+
+    // Callsign
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(callsign, tagX - 31, tagY - 2);
+
+    // Altitude & Fuel
+    ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
+    ctx.font = '6px monospace';
+    ctx.fillText(`FL${String(Math.round(flight.altitude / 100)).padStart(3, '0')} F:${Math.round(fuel)}%`, tagX - 31, tagY + 5);
+
+    // Status & Speed
+    const statAbbr = status === 'APPROACHING' ? 'APPR' : status === 'HOLDING' ? 'HOLD' : status === 'LANDING' ? 'LNDG' : 'DEP';
+    ctx.fillText(`${statAbbr} S:${Math.round(flight.speed * 40)}KTS`, tagX - 31, tagY + 12);
   }
 }
 
