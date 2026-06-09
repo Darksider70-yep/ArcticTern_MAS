@@ -1,0 +1,178 @@
+// ArcticTern ATC — Runway Agent
+// Manages runway sequencing, separation, and utilization using Q-Learning
+
+import { QTable, discretize, makeStateKey } from '../QLearning.js';
+
+const ACTIONS = ['CLEAR_LANDING', 'CLEAR_TAKEOFF', 'HOLD', 'SWITCH_RUNWAY'];
+
+export class RunwayAgent {
+  constructor(runways) {
+    this.runways = runways.map(r => ({
+      ...r,
+      occupied: false,
+      occupiedBy: null,
+      cooldownTimer: 0,
+      queue: [],
+      totalOps: 0,
+    }));
+    this.qTable = new QTable(ACTIONS, { epsilon: 0.2, alpha: 0.1, gamma: 0.9 });
+    this.lastAction = 'HOLD';
+    this.lastDecision = {};
+    this.totalThroughput = 0;
+    this.conflicts = 0;
+
+    // Pre-seed Q-table
+    this._preSeed();
+  }
+
+  _preSeed() {
+    // Prefer clearing landing when queue is long and runway is free
+    this.qTable.seed({
+      '2_0_0_0': { CLEAR_LANDING: 0.8, HOLD: 0.1, CLEAR_TAKEOFF: 0.3, SWITCH_RUNWAY: -0.1 },
+      '1_0_0_0': { CLEAR_LANDING: 0.7, HOLD: 0.2, CLEAR_TAKEOFF: 0.4, SWITCH_RUNWAY: -0.1 },
+      '0_0_0_0': { HOLD: 0.5, CLEAR_TAKEOFF: 0.3, CLEAR_LANDING: 0.1, SWITCH_RUNWAY: -0.1 },
+      '2_1_0_0': { HOLD: 0.6, CLEAR_LANDING: -0.2, CLEAR_TAKEOFF: -0.2, SWITCH_RUNWAY: 0.3 },
+      '2_0_1_0': { HOLD: 0.4, CLEAR_LANDING: 0.2, CLEAR_TAKEOFF: 0.1, SWITCH_RUNWAY: 0.5 },
+      '1_0_0_1': { CLEAR_TAKEOFF: 0.6, HOLD: 0.2, CLEAR_LANDING: 0.3, SWITCH_RUNWAY: -0.1 },
+    });
+  }
+
+  getState(weatherSeverity) {
+    const totalQueue = this.runways.reduce((sum, r) => sum + r.queue.length, 0);
+    const anyOccupied = this.runways.some(r => r.occupied) ? 1 : 0;
+    const weatherBucket = discretize(weatherSeverity, [3, 7]);
+    const hasDepartures = this.runways.some(r => r.queue.some(f => f.type === 'departure')) ? 1 : 0;
+
+    return makeStateKey(
+      discretize(totalQueue, [1, 3, 6]),
+      anyOccupied,
+      weatherBucket,
+      hasDepartures
+    );
+  }
+
+  decide(flights, weatherState) {
+    const state = this.getState(weatherState.intensity);
+    const { action, qValue, wasExploration } = this.qTable.chooseAction(state);
+
+    let reward = 0;
+    const decision = { action, qValue, wasExploration };
+
+    switch (action) {
+      case 'CLEAR_LANDING': {
+        const runway = this.runways.find(r => r.active && !r.occupied && r.cooldownTimer <= 0);
+        if (runway && runway.queue.length > 0) {
+          const flight = runway.queue.shift();
+          runway.occupied = true;
+          runway.occupiedBy = flight.callsign;
+          runway.cooldownTimer = 30; // ticks
+          runway.totalOps++;
+          this.totalThroughput++;
+          reward = 1.0 - (flight.waitTime || 0) * 0.01;
+          decision.runway = runway.name;
+          decision.callsign = flight.callsign;
+          decision.queue = runway.queue.length;
+          decision.wait = Math.round((flight.waitTime || 0));
+        } else {
+          reward = -0.1; // No valid action
+        }
+        break;
+      }
+      case 'CLEAR_TAKEOFF': {
+        const runway = this.runways.find(r => r.active && !r.occupied && r.cooldownTimer <= 0);
+        if (runway) {
+          const depFlight = runway.queue.find(f => f.type === 'departure');
+          if (depFlight) {
+            runway.queue = runway.queue.filter(f => f !== depFlight);
+            runway.occupied = true;
+            runway.occupiedBy = depFlight.callsign;
+            runway.cooldownTimer = 25;
+            runway.totalOps++;
+            this.totalThroughput++;
+            reward = 0.8;
+            decision.runway = runway.name;
+            decision.callsign = depFlight.callsign;
+          } else {
+            reward = -0.1;
+          }
+        } else {
+          reward = -0.1;
+        }
+        break;
+      }
+      case 'HOLD':
+        reward = -0.05 * this.runways.reduce((s, r) => s + r.queue.length, 0);
+        break;
+      case 'SWITCH_RUNWAY':
+        if (weatherState.intensity > 5) {
+          // Valid to switch during bad weather
+          const inactive = this.runways.find(r => !r.active);
+          if (inactive) {
+            inactive.active = true;
+            reward = 0.3;
+            decision.runway = inactive.name;
+            decision.reason = 'weather adaptation';
+          }
+        } else {
+          reward = -0.2; // Unnecessary switch
+        }
+        break;
+    }
+
+    // Learn from this step
+    const nextState = this.getState(weatherState.intensity);
+    this.qTable.learn(state, action, reward, nextState);
+
+    this.lastAction = action;
+    this.lastDecision = decision;
+    return decision;
+  }
+
+  tick() {
+    // Update runway cooldowns and occupancy
+    for (const runway of this.runways) {
+      if (runway.cooldownTimer > 0) {
+        runway.cooldownTimer--;
+        if (runway.cooldownTimer <= 0) {
+          runway.occupied = false;
+          runway.occupiedBy = null;
+        }
+      }
+      // Age queue items
+      for (const item of runway.queue) {
+        item.waitTime = (item.waitTime || 0) + 1;
+      }
+    }
+  }
+
+  addToQueue(runwayIndex, flightInfo) {
+    if (runwayIndex < this.runways.length) {
+      this.runways[runwayIndex].queue.push({ ...flightInfo, waitTime: 0 });
+    }
+  }
+
+  getUtilization() {
+    const active = this.runways.filter(r => r.active);
+    if (active.length === 0) return 0;
+    const busyCount = active.filter(r => r.occupied || r.queue.length > 0).length;
+    return Math.round((busyCount / active.length) * 100);
+  }
+
+  getStatus() {
+    return {
+      runways: this.runways.map(r => ({
+        name: r.name,
+        active: r.active,
+        occupied: r.occupied,
+        occupiedBy: r.occupiedBy,
+        queueLength: r.queue.length,
+        totalOps: r.totalOps,
+      })),
+      utilization: this.getUtilization(),
+      throughput: this.totalThroughput,
+      lastAction: this.lastAction,
+      lastDecision: this.lastDecision,
+      qStats: this.qTable.getStats(),
+    };
+  }
+}
