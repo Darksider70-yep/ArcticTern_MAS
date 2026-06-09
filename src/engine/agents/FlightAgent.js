@@ -1,14 +1,14 @@
 // ArcticTern ATC — Flight Agent
 // Per-aircraft autonomous agent using Q-Learning
 
-import { DeepQNetwork } from '../QLearning.js';
+import { PythonDQNBridge } from '../QLearning.js';
 import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, RUNWAYS, HOLDING_ZONES, GATES } from '../Airport.js';
 import { mapCoordsToCanvas, getAircraftInfo } from '../../utils/flightApi.js';
 
 const ACTIONS = ['REQUEST_LANDING', 'HOLD_PATTERN', 'DIVERT', 'REQUEST_TAKEOFF', 'TAXI_TO_GATE', 'TAXI_TO_RUNWAY'];
 
 // Shared DQN across all flight agents (they learn collectively)
-export const sharedDQN = new DeepQNetwork(ACTIONS, 6, [32, 16], { epsilon: 0.15, alpha: 0.01, gamma: 0.9 });
+export const sharedDQN = new PythonDQNBridge('flight', ACTIONS, 6, [32, 16]);
 
 // Pre-seed shared flight DQN with continuous vectors
 sharedDQN.seed([
@@ -110,13 +110,13 @@ export class FlightAgent {
     ];
   }
 
-  decide(weatherSeverity, queuePosition) {
+  async decide(weatherSeverity, queuePosition) {
     if (this.status !== FLIGHT_STATUS.APPROACHING && this.status !== FLIGHT_STATUS.HOLDING) {
       return null;
     }
 
     const stateVec = this.getStateVector(weatherSeverity, queuePosition);
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
+    const { action, qValue, wasExploration } = await this.qTable.chooseAction(stateVec);
 
     let reward;
     let effectiveAction = action;
@@ -151,7 +151,7 @@ export class FlightAgent {
 
     // Learn
     const nextStateVec = this.getStateVector(weatherSeverity, queuePosition);
-    this.qTable.learn(stateVec, effectiveAction, reward, nextStateVec);
+    await this.qTable.learn(stateVec, effectiveAction, reward, nextStateVec);
 
     this.lastAction = effectiveAction;
     return {

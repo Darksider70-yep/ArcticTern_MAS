@@ -1,7 +1,7 @@
 // ArcticTern ATC — Runway Agent
 // Manages runway sequencing, separation, and utilization using Q-Learning
 
-import { DeepQNetwork } from '../QLearning.js';
+import { PythonDQNBridge } from '../QLearning.js';
 
 const ACTIONS = ['CLEAR_LANDING', 'CLEAR_TAKEOFF', 'HOLD', 'SWITCH_RUNWAY'];
 
@@ -15,7 +15,7 @@ export class RunwayAgent {
       queue: [],
       totalOps: 0,
     }));
-    this.qTable = new DeepQNetwork(ACTIONS, 5, [32, 16], { epsilon: 0.2, alpha: 0.01, gamma: 0.9 });
+    this.qTable = new PythonDQNBridge('runway', ACTIONS, 5, [32, 16]);
     this.lastAction = 'HOLD';
     this.lastDecision = {};
     this.totalThroughput = 0;
@@ -53,9 +53,9 @@ export class RunwayAgent {
     ];
   }
 
-  decide(flights, weatherState) {
+  async decide(flights, weatherState) {
     const stateVec = this.getStateVector(weatherState.intensity);
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
+    const { action, qValue, wasExploration } = await this.qTable.chooseAction(stateVec);
 
     let reward = 0;
     const decision = { action, qValue, wasExploration };
@@ -138,7 +138,7 @@ export class RunwayAgent {
 
     // Learn from this step
     const nextStateVec = this.getStateVector(weatherState.intensity);
-    this.qTable.learn(stateVec, action, reward, nextStateVec);
+    await this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;

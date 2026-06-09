@@ -186,41 +186,41 @@ export class SimEngine {
     if (this.tickCount % 30 === 0) {
       for (const flight of activeFlights) {
         const queuePos = this._getQueuePosition(flight);
-        const decision = flight.decide(weatherState.intensity, queuePos);
-
-        if (decision) {
-          if (decision.action === 'REQUEST_LANDING' && flight.status === FLIGHT_STATUS.HOLDING) {
-            // Add to runway queue if not already in it
-            const alreadyQueued = this.runwayAgent.runways.some(r =>
-              r.queue.some(q => q.callsign === flight.callsign)
-            );
-            if (!alreadyQueued) {
-              const bestRunway = this._getBestRunway();
-              if (bestRunway !== null) {
-                this.runwayAgent.addToQueue(bestRunway, {
+        flight.decide(weatherState.intensity, queuePos).then(decision => {
+          if (decision) {
+            if (decision.action === 'REQUEST_LANDING' && flight.status === FLIGHT_STATUS.HOLDING) {
+              // Add to runway queue if not already in it
+              const alreadyQueued = this.runwayAgent.runways.some(r =>
+                r.queue.some(q => q.callsign === flight.callsign)
+              );
+              if (!alreadyQueued) {
+                const bestRunway = this._getBestRunway();
+                if (bestRunway !== null) {
+                  this.runwayAgent.addToQueue(bestRunway, {
+                    callsign: flight.callsign,
+                    type: 'arrival',
+                    separationClass: flight.separationClass,
+                  });
+                }
+              }
+            } else if (decision.action === 'HOLD_PATTERN') {
+              if (flight.status === FLIGHT_STATUS.APPROACHING) {
+                flight.status = FLIGHT_STATUS.HOLDING;
+              }
+            } else if (decision.action === 'DIVERT') {
+              // Only actually divert if fuel is critically low or weather is extreme
+              if (flight.fuel < 10 || weatherState.intensity > 8) {
+                flight.status = FLIGHT_STATUS.DIVERTED;
+                this._addNarration('flight', 'DIVERT', {
                   callsign: flight.callsign,
-                  type: 'arrival',
-                  separationClass: flight.separationClass,
+                  reason: flight.fuel < 10 ? 'fuel emergency' : 'severe weather',
+                  fuel: Math.round(flight.fuel),
                 });
               }
+              // Otherwise ignore the divert decision (agent learns from negative reward)
             }
-          } else if (decision.action === 'HOLD_PATTERN') {
-            if (flight.status === FLIGHT_STATUS.APPROACHING) {
-              flight.status = FLIGHT_STATUS.HOLDING;
-            }
-          } else if (decision.action === 'DIVERT') {
-            // Only actually divert if fuel is critically low or weather is extreme
-            if (flight.fuel < 10 || weatherState.intensity > 8) {
-              flight.status = FLIGHT_STATUS.DIVERTED;
-              this._addNarration('flight', 'DIVERT', {
-                callsign: flight.callsign,
-                reason: flight.fuel < 10 ? 'fuel emergency' : 'severe weather',
-                fuel: Math.round(flight.fuel),
-              });
-            }
-            // Otherwise ignore the divert decision (agent learns from negative reward)
           }
-        }
+        });
       }
     }
 
@@ -260,36 +260,38 @@ export class SimEngine {
     // 5. Runway agent decisions
     this.runwayAgent.tick();
     if (this.tickCount % 15 === 0) {
-      const runwayDecision = this.runwayAgent.decide(activeFlights, weatherState);
-      if (runwayDecision.action === 'CLEAR_LANDING' && runwayDecision.callsign) {
-        // Find the flight and clear it to land
-        const flight = this.flights.find(f => f.callsign === runwayDecision.callsign);
-        if (flight && (flight.status === FLIGHT_STATUS.HOLDING || flight.status === FLIGHT_STATUS.APPROACHING)) {
-          const runwayIdx = this.runwayAgent.runways.findIndex(r => r.name === runwayDecision.runway);
-          flight.clearToLand(runwayIdx >= 0 ? runwayIdx : 0);
-          this._addNarration('runway', 'CLEAR_LANDING', {
-            callsign: flight.callsign,
-            runway: runwayDecision.runway || '09/27',
-            queue: runwayDecision.queue || 0,
-            wait: runwayDecision.wait || 0,
-            separation: '4.5',
-          });
+      this.runwayAgent.decide(activeFlights, weatherState).then(runwayDecision => {
+        if (!runwayDecision) return;
+        if (runwayDecision.action === 'CLEAR_LANDING' && runwayDecision.callsign) {
+          // Find the flight and clear it to land
+          const flight = this.flights.find(f => f.callsign === runwayDecision.callsign);
+          if (flight && (flight.status === FLIGHT_STATUS.HOLDING || flight.status === FLIGHT_STATUS.APPROACHING)) {
+            const runwayIdx = this.runwayAgent.runways.findIndex(r => r.name === runwayDecision.runway);
+            flight.clearToLand(runwayIdx >= 0 ? runwayIdx : 0);
+            this._addNarration('runway', 'CLEAR_LANDING', {
+              callsign: flight.callsign,
+              runway: runwayDecision.runway || '09/27',
+              queue: runwayDecision.queue || 0,
+              wait: runwayDecision.wait || 0,
+              separation: '4.5',
+            });
+          }
+        } else if (runwayDecision.action === 'CLEAR_TAKEOFF' && runwayDecision.callsign) {
+          const flight = this.flights.find(f => f.callsign === runwayDecision.callsign);
+          if (flight && flight.status === FLIGHT_STATUS.WAITING_FOR_TAKEOFF) {
+            flight.status = FLIGHT_STATUS.DEPARTING;
+            const runway = RUNWAYS[flight.assignedRunway] || RUNWAYS[0];
+            flight.heading = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1) * 180 / Math.PI;
+            flight.speed = flight.baseSpeed * 1.5;
+            this._addNarration('runway', 'CLEAR_TAKEOFF', {
+              callsign: flight.callsign,
+              runway: runwayDecision.runway || '10/28',
+              util: this.runwayAgent.getUtilization(),
+              wait: '30',
+            });
+          }
         }
-      } else if (runwayDecision.action === 'CLEAR_TAKEOFF' && runwayDecision.callsign) {
-        const flight = this.flights.find(f => f.callsign === runwayDecision.callsign);
-        if (flight && flight.status === FLIGHT_STATUS.WAITING_FOR_TAKEOFF) {
-          flight.status = FLIGHT_STATUS.DEPARTING;
-          const runway = RUNWAYS[flight.assignedRunway] || RUNWAYS[0];
-          flight.heading = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1) * 180 / Math.PI;
-          flight.speed = flight.baseSpeed * 1.5;
-          this._addNarration('runway', 'CLEAR_TAKEOFF', {
-            callsign: flight.callsign,
-            runway: runwayDecision.runway || '10/28',
-            util: this.runwayAgent.getUtilization(),
-            wait: '30',
-          });
-        }
-      }
+      });
     }
 
     // 6. Gate agent decisions
@@ -302,34 +304,36 @@ export class SimEngine {
     }
 
     if (this.tickCount % 20 === 0) {
-      const gateDecision = this.gateAgent.decide();
-      if (gateDecision.action === 'ASSIGN_GATE' && gateDecision.callsign) {
-        const flight = this.flights.find(f => f.callsign === gateDecision.callsign);
-        const gate = this.gateAgent.gates.find(g => g.id === gateDecision.gateId);
-        if (flight && gate) {
-          flight.assignGate(gate);
-          this._addNarration('gate', 'ASSIGN_GATE', gateDecision);
-        }
-      } else if (gateDecision.action === 'RELEASE' && gateDecision.callsign) {
-        this._addNarration('gate', 'RELEASE', gateDecision);
-        const flight = this.flights.find(f => f.callsign === gateDecision.callsign);
-        if (flight && flight.status === FLIGHT_STATUS.PARKED) {
+      this.gateAgent.decide().then(gateDecision => {
+        if (!gateDecision) return;
+        if (gateDecision.action === 'ASSIGN_GATE' && gateDecision.callsign) {
+          const flight = this.flights.find(f => f.callsign === gateDecision.callsign);
           const gate = this.gateAgent.gates.find(g => g.id === gateDecision.gateId);
-          if (gate) {
-            gate.occupied = false;
-            gate.occupiedBy = null;
+          if (flight && gate) {
+            flight.assignGate(gate);
+            this._addNarration('gate', 'ASSIGN_GATE', gateDecision);
           }
-          const bestRunway = this._getBestRunway();
-          if (bestRunway !== null) {
-            flight.clearToDepartTaxi(bestRunway);
-            this.runwayAgent.addToQueue(bestRunway, {
-              callsign: flight.callsign,
-              type: 'departure',
-              separationClass: flight.separationClass,
-            });
+        } else if (gateDecision.action === 'RELEASE' && gateDecision.callsign) {
+          this._addNarration('gate', 'RELEASE', gateDecision);
+          const flight = this.flights.find(f => f.callsign === gateDecision.callsign);
+          if (flight && flight.status === FLIGHT_STATUS.PARKED) {
+            const gate = this.gateAgent.gates.find(g => g.id === gateDecision.gateId);
+            if (gate) {
+              gate.occupied = false;
+              gate.occupiedBy = null;
+            }
+            const bestRunway = this._getBestRunway();
+            if (bestRunway !== null) {
+              flight.clearToDepartTaxi(bestRunway);
+              this.runwayAgent.addToQueue(bestRunway, {
+                callsign: flight.callsign,
+                type: 'departure',
+                separationClass: flight.separationClass,
+              });
+            }
           }
         }
-      }
+      });
     }
 
     // 7. Coordinator

@@ -1,7 +1,7 @@
 // ArcticTern ATC — Gate Agent
 // Handles gate allocation and turnaround management using Q-Learning
 
-import { DeepQNetwork } from '../QLearning.js';
+import { PythonDQNBridge } from '../QLearning.js';
 import { GATES } from '../Airport.js';
 
 const ACTIONS = ['ASSIGN_GATE', 'REASSIGN', 'HOLD_TAXIWAY', 'RELEASE'];
@@ -15,7 +15,7 @@ export class GateAgent {
       turnaroundTimer: 0,
       turnaroundTotal: 0,
     }));
-    this.qTable = new DeepQNetwork(ACTIONS, 4, [32, 16], { epsilon: 0.2, alpha: 0.01, gamma: 0.9 });
+    this.qTable = new PythonDQNBridge('gate', ACTIONS, 4, [32, 16]);
     this.waitingQueue = [];
     this.lastAction = 'HOLD_TAXIWAY';
     this.lastDecision = {};
@@ -52,9 +52,9 @@ export class GateAgent {
     ];
   }
 
-  decide() {
+  async decide() {
     const stateVec = this.getStateVector();
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
+    const { action, qValue, wasExploration } = await this.qTable.chooseAction(stateVec);
 
     let reward = 0;
     const decision = { action, qValue, wasExploration };
@@ -122,7 +122,7 @@ export class GateAgent {
     }
 
     const nextStateVec = this.getStateVector();
-    this.qTable.learn(stateVec, action, reward, nextStateVec);
+    await this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;

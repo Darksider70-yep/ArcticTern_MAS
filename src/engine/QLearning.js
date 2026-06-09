@@ -315,3 +315,103 @@ export class DeepQNetwork {
     };
   }
 }
+
+export class PythonDQNBridge {
+  constructor(agentType, actions, inputSize, hiddenSizes = [32, 16]) {
+    this.agentType = agentType;
+    this.actions = actions;
+    this.localDQN = new DeepQNetwork(actions, inputSize, hiddenSizes, { epsilon: 0.15, alpha: 0.01, gamma: 0.9 });
+    this.serverUrl = '/api/ml';
+    this.stats = {
+      type: 'Python (PyTorch DQN)',
+      updates: 0,
+      epsilon: '0.150',
+      layers: 3,
+      neurons: `${inputSize} → ${hiddenSizes.join(' → ')} → ${actions.length}`
+    };
+    this.usingLocalFallback = false;
+  }
+
+  async chooseAction(stateVector) {
+    try {
+      const response = await fetch(`${this.serverUrl}/decide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_type: this.agentType, state: stateVector })
+      });
+      if (!response.ok) throw new Error('Server returned non-200');
+      const data = await response.json();
+      
+      this.usingLocalFallback = false;
+      this.stats.type = 'Python (PyTorch DQN)';
+      this.stats.epsilon = data.epsilon.toFixed(3);
+      this.stats.updates = data.updates;
+      
+      return {
+        action: data.action,
+        qValue: data.q_value,
+        wasExploration: data.was_exploration
+      };
+    } catch {
+      if (!this.usingLocalFallback) {
+        console.warn(`[PythonDQNBridge] Python ML server offline. Falling back to local JS DQN for agent: \${this.agentType}`);
+        this.usingLocalFallback = true;
+      }
+      this.stats.type = 'JS DQN (Fallback)';
+      const localStats = this.localDQN.getStats();
+      this.stats.updates = localStats.updates;
+      this.stats.epsilon = localStats.epsilon;
+      
+      return this.localDQN.chooseAction(stateVector);
+    }
+  }
+
+  async learn(stateVector, action, reward, nextStateVector) {
+    try {
+      const response = await fetch(`${this.serverUrl}/learn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_type: this.agentType,
+          state: stateVector,
+          action: action,
+          reward: reward,
+          next_state: nextStateVector
+        })
+      });
+      if (!response.ok) throw new Error('Server returned non-200');
+      const data = await response.json();
+      
+      this.stats.updates = data.updates;
+      this.stats.epsilon = data.epsilon.toFixed(3);
+      return data.loss;
+    } catch {
+      this.localDQN.learn(stateVector, action, reward, nextStateVector);
+      return 0;
+    }
+  }
+
+  async seed(samples) {
+    this.localDQN.seed(samples);
+    try {
+      await fetch(`${this.serverUrl}/seed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent_type: this.agentType,
+          samples: samples.map(s => ({
+            state: s.state,
+            action: s.action,
+            targetQ: s.targetQ
+          }))
+        })
+      });
+    } catch {
+      // Ignore seeding errors on python server
+    }
+  }
+
+  getStats() {
+    return this.stats;
+  }
+}
