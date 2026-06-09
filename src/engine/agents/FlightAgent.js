@@ -2,7 +2,7 @@
 // Per-aircraft autonomous agent using Q-Learning
 
 import { QTable, discretize, makeStateKey } from '../QLearning.js';
-import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, DEPARTURE_PATHS } from '../Airport.js';
+import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, DEPARTURE_PATHS, RUNWAYS, HOLDING_ZONES } from '../Airport.js';
 
 const ACTIONS = ['REQUEST_LANDING', 'HOLD_PATTERN', 'DIVERT', 'REQUEST_TAKEOFF', 'TAXI_TO_GATE', 'TAXI_TO_RUNWAY'];
 
@@ -51,16 +51,16 @@ export class FlightAgent {
       this.y = approach.y;
       this.heading = approach.angle;
       this.targetX = 500;
-      this.targetY = 350;
+      this.targetY = 400; // Delhi airport center
       this.altitude = 3000 + Math.random() * 2000;
       this.status = FLIGHT_STATUS.APPROACHING;
     } else {
       // Departures start at a gate
       this.x = 500;
-      this.y = 540;
+      this.y = 400;
       this.heading = 0;
       this.targetX = 500;
-      this.targetY = 350;
+      this.targetY = 400;
       this.altitude = 0;
       this.status = FLIGHT_STATUS.PARKED;
     }
@@ -150,7 +150,7 @@ export class FlightAgent {
 
   getDistanceToAirport() {
     const dx = this.x - 500;
-    const dy = this.y - 350;
+    const dy = this.y - 400;
     return Math.sqrt(dx * dx + dy * dy);
   }
 
@@ -183,17 +183,18 @@ export class FlightAgent {
         this.delay++;
         this.holdTimer++;
         this.holdAngle += 0.03;
-        const holdZone = this.y < 350 ? { cx: 300, cy: 100 } : { cx: 700, cy: 100 };
+        const holdZone = this.y < 400 ? HOLDING_ZONES[0] : HOLDING_ZONES[1];
         this.x = holdZone.cx + Math.cos(this.holdAngle) * 50;
         this.y = holdZone.cy + Math.sin(this.holdAngle) * 30;
         this.heading = (this.holdAngle * 180 / Math.PI + 90) % 360;
         break;
 
       case FLIGHT_STATUS.LANDING: {
-        const runwayY = this.assignedRunway === 0 ? 280 : 420;
-        this._moveToward(500, runwayY, this.speed * 1.2);
+        const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
+        const runwayY = runway.y1;
+        this._moveToward((runway.x1 + runway.x2) / 2, runwayY, this.speed * 1.2);
         this.altitude = Math.max(0, this.altitude - 50);
-        if (Math.abs(this.y - runwayY) < 5 && this.x > 200 && this.x < 800) {
+        if (Math.abs(this.y - runwayY) < 5 && this.x > runway.x1 && this.x < runway.x2) {
           this.status = FLIGHT_STATUS.LANDED;
           this.altitude = 0;
           this.landedAt = simTime;
@@ -227,9 +228,11 @@ export class FlightAgent {
         break;
 
       case FLIGHT_STATUS.TAXIING_TO_RUNWAY: {
-        const runwayY = this.assignedRunway === 0 ? 280 : 420;
-        this._moveToward(200, runwayY, 1.5);
-        if (this._distanceTo(200, runwayY) < 15) {
+        const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
+        const runwayY = runway.y1;
+        const runwayStartX = runway.x1 + 50;
+        this._moveToward(runwayStartX, runwayY, 1.5);
+        if (this._distanceTo(runwayStartX, runwayY) < 15) {
           this.status = FLIGHT_STATUS.DEPARTING;
           this.heading = 90; // East
           this.speed = this.baseSpeed * 1.5;
@@ -280,9 +283,9 @@ export class FlightAgent {
   clearToLand(runwayIndex) {
     this.assignedRunway = runwayIndex;
     this.status = FLIGHT_STATUS.LANDING;
-    const runwayY = runwayIndex === 0 ? 280 : 420;
-    this.targetX = 500;
-    this.targetY = runwayY;
+    const runway = RUNWAYS[runwayIndex] || RUNWAYS[0];
+    this.targetX = (runway.x1 + runway.x2) / 2;
+    this.targetY = runway.y1;
   }
 
   assignGate(gate) {

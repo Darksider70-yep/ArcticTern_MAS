@@ -56,19 +56,33 @@ export class GateAgent {
 
     switch (action) {
       case 'ASSIGN_GATE': {
-        const freeGate = this.gates.find(g => !g.occupied);
         const waiting = this.waitingQueue.shift();
-        if (freeGate && waiting) {
-          freeGate.occupied = true;
-          freeGate.occupiedBy = waiting.callsign;
-          freeGate.turnaroundTimer = 60 + Math.random() * 120; // 60-180 ticks
-          freeGate.turnaroundTotal = freeGate.turnaroundTimer;
-          this.totalAssignments++;
-          reward = 0.8 - (waiting.waitTime || 0) * 0.005;
-          decision.gateId = freeGate.id;
-          decision.callsign = waiting.callsign;
-          decision.turnaround = Math.round(freeGate.turnaroundTimer / 60);
-          decision.util = this.getUtilization();
+        if (waiting) {
+          const callsign = waiting.callsign || '';
+          const prefix = callsign.slice(0, 2);
+          const isLCC = ['6E', 'SG', 'QP'].includes(prefix);
+          
+          let freeGate = this.gates.find(g => !g.occupied && (isLCC ? (g.id.startsWith('T1') || g.id.startsWith('T2')) : g.id.startsWith('T3')));
+          if (!freeGate) {
+            freeGate = this.gates.find(g => !g.occupied);
+          }
+
+          if (freeGate) {
+            freeGate.occupied = true;
+            freeGate.occupiedBy = waiting.callsign;
+            freeGate.turnaroundTimer = 60 + Math.random() * 120; // 60-180 ticks
+            freeGate.turnaroundTotal = freeGate.turnaroundTimer;
+            this.totalAssignments++;
+            reward = 0.8 - (waiting.waitTime || 0) * 0.005;
+            decision.gateId = freeGate.id;
+            decision.callsign = waiting.callsign;
+            decision.turnaround = Math.round(freeGate.turnaroundTimer / 60);
+            decision.util = this.getUtilization();
+          } else {
+            // Re-queue
+            this.waitingQueue.unshift(waiting);
+            reward = -0.2;
+          }
         } else {
           reward = -0.2;
         }

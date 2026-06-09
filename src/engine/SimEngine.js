@@ -244,7 +244,7 @@ export class SimEngine {
           flight.clearToLand(runwayIdx >= 0 ? runwayIdx : 0);
           this._addNarration('runway', 'CLEAR_LANDING', {
             callsign: flight.callsign,
-            runway: runwayDecision.runway || '09L/27R',
+            runway: runwayDecision.runway || '09/27',
             queue: runwayDecision.queue || 0,
             wait: runwayDecision.wait || 0,
             separation: '4.5',
@@ -262,7 +262,7 @@ export class SimEngine {
           flight.clearToDepartTaxi(runwayIdx >= 0 ? runwayIdx : 0);
           this._addNarration('runway', 'CLEAR_TAKEOFF', {
             callsign: flight.callsign,
-            runway: runwayDecision.runway || '09R/27L',
+            runway: runwayDecision.runway || '10/28',
             util: this.runwayAgent.getUtilization(),
             wait: '30',
           });

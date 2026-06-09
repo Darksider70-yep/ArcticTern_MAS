@@ -3,7 +3,7 @@
 // Dynamic layer: aircraft, trails, weather, conflicts
 
 import { useRef, useEffect, useCallback } from 'react';
-import { RUNWAYS, GATES, TERMINAL, TAXIWAY_NODES, TAXIWAY_EDGES, HOLDING_ZONES, AIRPORT_WIDTH, AIRPORT_HEIGHT } from '../engine/Airport.js';
+import { RUNWAYS, GATES, TERMINALS, TAXIWAY_NODES, TAXIWAY_EDGES, HOLDING_ZONES, AIRPORT_WIDTH, AIRPORT_HEIGHT } from '../engine/Airport.js';
 import { COLORS } from '../utils/colors.js';
 
 export default function AirportCanvas({ snapshot }) {
@@ -108,9 +108,12 @@ function drawStaticLayer(ctx) {
   }
 
   // Grass areas (dark green tint)
-  ctx.fillStyle = 'rgba(16, 40, 16, 0.5)';
-  ctx.fillRect(0, 0, AIRPORT_WIDTH, 220);
-  ctx.fillRect(0, 460, AIRPORT_WIDTH, AIRPORT_HEIGHT - 460);
+  ctx.fillStyle = 'rgba(12, 35, 12, 0.35)';
+  ctx.fillRect(0, 0, AIRPORT_WIDTH, 130);
+  ctx.fillRect(0, 170, AIRPORT_WIDTH, 130);
+  ctx.fillRect(0, 340, AIRPORT_WIDTH, 160);
+  ctx.fillRect(0, 540, AIRPORT_WIDTH, 110);
+  ctx.fillRect(0, 690, AIRPORT_WIDTH, 110);
 
   // Taxiways
   ctx.strokeStyle = COLORS.taxiway;
@@ -178,20 +181,22 @@ function drawStaticLayer(ctx) {
     ctx.fillText(runway.name.split('/')[1], runway.x2 - 40, runway.y1 + 4);
   }
 
-  // Terminal building
+  // Terminal buildings
   ctx.fillStyle = COLORS.terminal;
   ctx.strokeStyle = COLORS.terminalOutline;
   ctx.lineWidth = 2;
-  const r = 8;
-  roundRect(ctx, TERMINAL.x, TERMINAL.y, TERMINAL.width, TERMINAL.height, r);
-  ctx.fill();
-  ctx.stroke();
+  const r = 6;
+  for (const term of TERMINALS) {
+    roundRect(ctx, term.x, term.y, term.width, term.height, r);
+    ctx.fill();
+    ctx.stroke();
 
-  // Terminal label
-  ctx.fillStyle = COLORS.textSecondary;
-  ctx.font = 'bold 12px Inter, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('TERMINAL', TERMINAL.x + TERMINAL.width / 2, TERMINAL.y + TERMINAL.height / 2 + 4);
+    // Terminal label
+    ctx.fillStyle = COLORS.textSecondary;
+    ctx.font = 'bold 9px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(term.id, term.x + term.width / 2, term.y + term.height / 2 + 3);
+  }
 
   // Gates
   for (const gate of GATES) {
