@@ -79,7 +79,7 @@ export default function AirportCanvas({ snapshot }) {
   }, [getScale]);
 
   return (
-    <div ref={containerRef} className="airport-canvas-container" id="airport-canvas">
+    <div ref={containerRef} className="airport-canvas-container" id="airport-canvas" style={{ background: '#ffffff', border: '1px solid #ccc' }}>
       <canvas ref={staticCanvasRef} className="airport-canvas airport-canvas-static" />
       <canvas ref={dynamicCanvasRef} className="airport-canvas airport-canvas-dynamic" />
     </div>
@@ -89,12 +89,12 @@ export default function AirportCanvas({ snapshot }) {
 // ───── Static Layer ─────
 
 function drawStaticLayer(ctx) {
-  // Background
-  ctx.fillStyle = '#0d1117';
+  // Background - Professional Chart White
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, AIRPORT_WIDTH, AIRPORT_HEIGHT);
 
-  // Grid
-  ctx.strokeStyle = COLORS.gridLine;
+  // Faint Grid
+  ctx.strokeStyle = '#f1f5f9';
   ctx.lineWidth = 0.5;
   for (let x = 0; x < AIRPORT_WIDTH; x += 50) {
     ctx.beginPath();
@@ -109,32 +109,15 @@ function drawStaticLayer(ctx) {
     ctx.stroke();
   }
 
-  // Concentric Radar Range Rings (centered at DPN VOR 480, 360)
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.08)';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([5, 10]);
-  for (const radius of [120, 240, 360, 480, 600]) {
-    ctx.beginPath();
-    ctx.arc(480, 360, radius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Radar distance markers (NM equivalent)
-    ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
-    ctx.font = '7px monospace';
-    ctx.textAlign = 'left';
-    ctx.fillText(`${Math.round(radius / 20)}NM`, 485, 360 - radius + 3);
-  }
-  ctx.setLineDash([]);
-
   // Airspace VOR and FIX waypoints
   for (const wp of WAYPOINTS) {
     ctx.save();
     ctx.translate(wp.x, wp.y);
 
     if (wp.type === 'VOR') {
-      ctx.strokeStyle = 'rgba(34, 211, 238, 0.6)';
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#000000';
+      ctx.fillStyle = '#ffffff';
+      ctx.lineWidth = 1;
       ctx.beginPath();
       for (let i = 0; i < 6; i++) {
         const angle = i * Math.PI / 3;
@@ -144,12 +127,12 @@ function drawStaticLayer(ctx) {
       ctx.fill();
       ctx.stroke();
 
-      ctx.fillStyle = 'rgba(34, 211, 238, 0.8)';
+      ctx.fillStyle = '#000000';
       ctx.beginPath();
       ctx.arc(0, 0, 1.5, 0, Math.PI * 2);
       ctx.fill();
     } else {
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+      ctx.strokeStyle = '#000000';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(0, -6);
@@ -160,23 +143,29 @@ function drawStaticLayer(ctx) {
     }
 
     // Waypoint text
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.6)';
-    ctx.font = 'bold 7px monospace';
+    ctx.fillStyle = '#000000';
+    ctx.font = '7px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(wp.id, 0, 14);
     ctx.restore();
   }
 
-  // Grass areas (dark green tint)
-  ctx.fillStyle = 'rgba(12, 35, 12, 0.35)';
-  ctx.fillRect(0, 0, AIRPORT_WIDTH, 130);
-  ctx.fillRect(0, 170, AIRPORT_WIDTH, 130);
-  ctx.fillRect(0, 340, AIRPORT_WIDTH, 160);
-  ctx.fillRect(0, 540, AIRPORT_WIDTH, 110);
-  ctx.fillRect(0, 690, AIRPORT_WIDTH, 110);
+  // Taxiway edges
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 8;
+  for (const edge of TAXIWAY_EDGES) {
+    const n1 = TAXIWAY_NODES.find(n => n.id === edge[0]);
+    const n2 = TAXIWAY_NODES.find(n => n.id === edge[1]);
+    if (n1 && n2) {
+      ctx.beginPath();
+      ctx.moveTo(n1.x, n1.y);
+      ctx.lineTo(n2.x, n2.y);
+      ctx.stroke();
+    }
+  }
 
-  // Taxiways
-  ctx.strokeStyle = COLORS.taxiway;
+  // Taxiways fill
+  ctx.strokeStyle = '#e5e5e5';
   ctx.lineWidth = 6;
   ctx.setLineDash([]);
   for (const edge of TAXIWAY_EDGES) {
@@ -190,9 +179,9 @@ function drawStaticLayer(ctx) {
     }
   }
 
-  // Taxiway edges (lighter)
-  ctx.strokeStyle = COLORS.taxiwayEdge;
-  ctx.lineWidth = 1;
+  // Taxiway Centerlines
+  ctx.strokeStyle = '#f59e0b';
+  ctx.lineWidth = 0.5;
   for (const edge of TAXIWAY_EDGES) {
     const n1 = TAXIWAY_NODES.find(n => n.id === edge[0]);
     const n2 = TAXIWAY_NODES.find(n => n.id === edge[1]);
@@ -216,18 +205,18 @@ function drawStaticLayer(ctx) {
     ctx.rotate(angle);
 
     // Runway surface
-    ctx.fillStyle = '#1a1a2e';
+    ctx.fillStyle = '#b3b3b3';
     ctx.fillRect(0, -runway.width / 2, len, runway.width);
 
     // Runway border
-    ctx.strokeStyle = COLORS.runway;
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
     ctx.strokeRect(0, -runway.width / 2, len, runway.width);
 
-    // Center line (dashed)
-    ctx.strokeStyle = COLORS.runwayMarkings;
+    // Center line (dashed white)
+    ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 1;
-    ctx.setLineDash([15, 10]);
+    ctx.setLineDash([10, 5]);
     ctx.beginPath();
     ctx.moveTo(20, 0);
     ctx.lineTo(len - 20, 0);
@@ -237,45 +226,52 @@ function drawStaticLayer(ctx) {
     // Threshold markings
     for (let i = -4; i <= 4; i += 2) {
       if (i === 0) continue;
-      ctx.fillStyle = COLORS.runwayMarkings;
+      ctx.fillStyle = '#ffffff';
       ctx.fillRect(10, i - 0.5, 20, 1);
       ctx.fillRect(len - 30, i - 0.5, 20, 1);
     }
 
     // Runway labels
-    ctx.fillStyle = COLORS.textSecondary;
-    ctx.font = '10px Inter, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 9px Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(runway.name.split('/')[0], 40, 4);
-    ctx.fillText(runway.name.split('/')[1], len - 40, 4);
+    
+    ctx.save();
+    ctx.translate(40, -10);
+    ctx.fillText(runway.name.split('/')[0], 0, 0);
+    ctx.restore();
+    
+    ctx.save();
+    ctx.translate(len - 40, -10);
+    ctx.fillText(runway.name.split('/')[1], 0, 0);
+    ctx.restore();
 
     ctx.restore();
   }
 
   // Terminal buildings
-  ctx.fillStyle = COLORS.terminal;
-  ctx.strokeStyle = COLORS.terminalOutline;
-  ctx.lineWidth = 2;
-  const r = 6;
+  ctx.fillStyle = '#d4d4d4';
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 1.5;
+  const r = 2;
   for (const term of TERMINALS) {
     roundRect(ctx, term.x, term.y, term.width, term.height, r);
     ctx.fill();
     ctx.stroke();
 
-    // Draw realistic terminal piers/fingers
     if (term.id === 'T3') {
-      ctx.fillStyle = COLORS.terminal;
-      ctx.strokeStyle = COLORS.terminalOutline;
-      ctx.lineWidth = 2;
-      // Pier 1
       ctx.fillRect(340, 435, 15, 30);
       ctx.strokeRect(340, 435, 15, 30);
-      // Pier 2
       ctx.fillRect(450, 435, 15, 30);
       ctx.strokeRect(450, 435, 15, 30);
-      // Pier 3
       ctx.fillRect(560, 435, 15, 30);
       ctx.strokeRect(560, 435, 15, 30);
+      
+      // Clear overlapping lines
+      ctx.fillStyle = '#d4d4d4';
+      ctx.fillRect(341, 434, 13, 2);
+      ctx.fillRect(451, 434, 13, 2);
+      ctx.fillRect(561, 434, 13, 2);
     } else if (term.id === 'T1') {
       ctx.beginPath();
       ctx.arc(700, 240, 15, Math.PI, Math.PI * 1.5);
@@ -283,54 +279,45 @@ function drawStaticLayer(ctx) {
     }
 
     // Terminal label
-    ctx.fillStyle = COLORS.textSecondary;
-    ctx.font = 'bold 9px Inter, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 9px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(term.id, term.x + term.width / 2, term.y + term.height / 2 + 3);
   }
 
   // Gates
   for (const gate of GATES) {
-    // Gate connector line
-    ctx.strokeStyle = COLORS.taxiway;
-    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(gate.x, gate.y);
     ctx.lineTo(gate.x, gate.y - 20);
     ctx.stroke();
 
-    // Gate marker
-    ctx.fillStyle = COLORS.gate;
+    ctx.fillStyle = '#000000';
     ctx.beginPath();
-    ctx.arc(gate.x, gate.y, 5, 0, Math.PI * 2);
+    ctx.arc(gate.x, gate.y, 2, 0, Math.PI * 2);
     ctx.fill();
 
-    // Gate label
-    ctx.fillStyle = COLORS.textMuted;
-    ctx.font = '8px Inter, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.font = '6px Arial, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(gate.id, gate.x, gate.y + 14);
+    ctx.fillText(gate.id, gate.x, gate.y + 10);
   }
 
-  // Holding pattern zones
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.15)';
+  // Holding pattern zones (Professional dashed line)
+  ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1;
-  ctx.setLineDash([5, 5]);
+  ctx.setLineDash([4, 4]);
   for (const zone of HOLDING_ZONES) {
     ctx.beginPath();
     ctx.ellipse(zone.cx, zone.cy, zone.radius, zone.radius * 0.6, 0, 0, Math.PI * 2);
     ctx.stroke();
-
-    ctx.fillStyle = 'rgba(34, 211, 238, 0.06)';
-    ctx.beginPath();
-    ctx.ellipse(zone.cx, zone.cy, zone.radius, zone.radius * 0.6, 0, 0, Math.PI * 2);
-    ctx.fill();
   }
   ctx.setLineDash([]);
 
-  // Holding zone labels
-  ctx.fillStyle = 'rgba(34, 211, 238, 0.3)';
-  ctx.font = '9px Inter, sans-serif';
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 8px Arial, sans-serif';
   ctx.textAlign = 'center';
   ctx.fillText('HOLD', HOLDING_ZONES[0].cx, HOLDING_ZONES[0].cy + 3);
   ctx.fillText('HOLD', HOLDING_ZONES[1].cx, HOLDING_ZONES[1].cy + 3);
@@ -344,42 +331,11 @@ function drawStaticLayer(ctx) {
 function drawDynamicLayer(ctx, snapshot) {
   if (!snapshot) return;
 
-  // Radar sweep animation (Centered at VOR: 480, 360)
-  if (!window.radarSweepAngle) window.radarSweepAngle = 0;
-  window.radarSweepAngle = (window.radarSweepAngle + 0.008) % (Math.PI * 2);
-
-  ctx.save();
-  ctx.translate(480, 360);
-  ctx.rotate(window.radarSweepAngle);
-
-  // Fade radial wedge
-  const sweepGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, 600);
-  sweepGrad.addColorStop(0, 'rgba(34, 211, 238, 0.12)');
-  sweepGrad.addColorStop(0.2, 'rgba(34, 211, 238, 0.04)');
-  sweepGrad.addColorStop(1, 'rgba(34, 211, 238, 0)');
-
-  ctx.fillStyle = sweepGrad;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.arc(0, 0, 600, -0.22, 0);
-  ctx.closePath();
-  ctx.fill();
-
-  // Sweep leading beam
-  ctx.strokeStyle = 'rgba(34, 211, 238, 0.35)';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.lineTo(600, 0);
-  ctx.stroke();
-  ctx.restore();
-
   // Weather overlay
   if (snapshot.weather && snapshot.weather.stormCell) {
     drawStormCell(ctx, snapshot.weather.stormCell);
   }
 
-  // Weather status indicator
   if (snapshot.weather && snapshot.weather.state === 'STORM') {
     drawWeatherOverlay(ctx, snapshot.weather);
   }
@@ -413,18 +369,18 @@ function drawDynamicLayer(ctx, snapshot) {
       if (gate.occupied) {
         const gatePos = GATES.find(g => g.id === gate.id);
         if (gatePos) {
-          ctx.fillStyle = COLORS.gateActive;
+          ctx.fillStyle = COLORS.success;
           ctx.beginPath();
-          ctx.arc(gatePos.x, gatePos.y, 5, 0, Math.PI * 2);
+          ctx.arc(gatePos.x, gatePos.y, 4, 0, Math.PI * 2);
           ctx.fill();
 
           // Turnaround progress
           if (gate.turnaroundTotal > 0) {
             const progress = 1 - (gate.turnaroundRemaining / gate.turnaroundTotal);
-            ctx.strokeStyle = COLORS.success;
+            ctx.strokeStyle = COLORS.info;
             ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(gatePos.x, gatePos.y, 8, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+            ctx.arc(gatePos.x, gatePos.y, 7, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
             ctx.stroke();
           }
         }
@@ -449,9 +405,8 @@ function drawDynamicLayer(ctx, snapshot) {
 
           ctx.strokeStyle = COLORS.danger;
           ctx.lineWidth = 3;
-          ctx.globalAlpha = 0.7;
+          ctx.globalAlpha = 0.8;
 
-          // Draw X's along the runway length
           for (let offset = 100; offset < len; offset += 200) {
             ctx.beginPath();
             ctx.moveTo(offset - 15, -10);
@@ -464,26 +419,10 @@ function drawDynamicLayer(ctx, snapshot) {
           }
 
           ctx.fillStyle = COLORS.danger;
-          ctx.font = 'bold 10px Inter, sans-serif';
+          ctx.font = 'bold 10px Arial, sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('CLOSED', len / 2, -15);
           
-          ctx.restore();
-        }
-      } else if (runway.occupied) {
-        const rDef = RUNWAYS.find(r => r.name === runway.name);
-        if (rDef) {
-          ctx.save();
-          const dx = rDef.x2 - rDef.x1;
-          const dy = rDef.y2 - rDef.y1;
-          const len = Math.sqrt(dx * dx + dy * dy);
-          const angle = Math.atan2(dy, dx);
-
-          ctx.translate(rDef.x1, rDef.y1);
-          ctx.rotate(angle);
-
-          ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
-          ctx.fillRect(0, -rDef.width / 2 - 2, len, rDef.width + 4);
           ctx.restore();
         }
       }
@@ -496,37 +435,26 @@ function drawDynamicLayer(ctx, snapshot) {
 function drawAircraft(ctx, flight) {
   const { x, y, heading, status, size, callsign, fuel } = flight;
 
-  // Bounds check
   if (x < -50 || x > AIRPORT_WIDTH + 50 || y < -50 || y > AIRPORT_HEIGHT + 50) return;
 
-  // Color based on status
-  let color;
+  let color = '#2563eb'; // Default blue for aircraft
   switch (status) {
-    case 'APPROACHING': color = COLORS.flightArriving; break;
-    case 'HOLDING': color = COLORS.flightHolding; break;
-    case 'LANDING': color = COLORS.flightArriving; break;
-    case 'DEPARTING': color = COLORS.flightDeparting; break;
+    case 'APPROACHING': color = '#2563eb'; break;
+    case 'HOLDING': color = '#d97706'; break;
+    case 'LANDING': color = '#059669'; break;
+    case 'DEPARTING': color = '#7c3aed'; break;
     case 'TAXIING_TO_GATE':
-    case 'TAXIING_TO_RUNWAY': color = COLORS.flightTaxiing; break;
-    case 'PARKED': color = COLORS.flightParked; break;
-    case 'GO_AROUND': color = COLORS.flightConflict; break;
-    default: color = COLORS.flightArriving;
+    case 'TAXIING_TO_RUNWAY': color = '#0ea5e9'; break;
+    case 'PARKED': color = '#64748b'; break;
+    case 'GO_AROUND': color = '#dc2626'; break;
   }
 
-  // Check for conflict (fuel < 15)
-  if (fuel < 15) color = COLORS.flightConflict;
+  if (fuel < 15) color = '#dc2626';
 
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate((heading || 0) * Math.PI / 180);
 
-  // Glow effect for airborne aircraft
-  if (status === 'APPROACHING' || status === 'HOLDING' || status === 'DEPARTING') {
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 8;
-  }
-
-  // Aircraft triangle
   const s = size || 8;
   ctx.fillStyle = color;
   ctx.beginPath();
@@ -536,51 +464,40 @@ function drawAircraft(ctx, flight) {
   ctx.lineTo(-s * 0.6, s * 0.5);
   ctx.closePath();
   ctx.fill();
-
-  // Wings
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-s * 0.2, -s * 0.8);
-  ctx.lineTo(s * 0.2, 0);
-  ctx.lineTo(-s * 0.2, s * 0.8);
+  
+  ctx.strokeStyle = '#000000';
+  ctx.lineWidth = 0.5;
   ctx.stroke();
 
-  ctx.shadowBlur = 0;
   ctx.restore();
 
-  // ATC Flight Data Block with leader line
+  // ATC Flight Data Block
   if (status !== 'PARKED' && status !== 'TAXIING_TO_GATE' && status !== 'TAXIING_TO_RUNWAY') {
     const tagX = x + (x < 500 ? -45 : 45);
     const tagY = y - 30;
 
-    // Leader line
-    ctx.strokeStyle = 'rgba(34, 211, 238, 0.4)';
+    ctx.strokeStyle = '#94a3b8';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(tagX + (x < 500 ? 35 : -35), tagY + 10);
     ctx.stroke();
 
-    // Data container panel
-    ctx.fillStyle = 'rgba(10, 15, 25, 0.85)';
-    ctx.strokeStyle = color;
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#000000';
     ctx.lineWidth = 1;
     ctx.fillRect(tagX - 35, tagY - 10, 70, 26);
     ctx.strokeRect(tagX - 35, tagY - 10, 70, 26);
 
-    // Callsign
-    ctx.fillStyle = '#f8fafc';
-    ctx.font = 'bold 7px monospace';
+    ctx.fillStyle = '#000000';
+    ctx.font = 'bold 7px Arial';
     ctx.textAlign = 'left';
     ctx.fillText(callsign, tagX - 31, tagY - 2);
 
-    // Altitude & Fuel
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.9)';
-    ctx.font = '6px monospace';
+    ctx.fillStyle = '#475569';
+    ctx.font = '6px Arial';
     ctx.fillText(`FL${String(Math.round(flight.altitude / 100)).padStart(3, '0')} F:${Math.round(fuel)}%`, tagX - 31, tagY + 5);
 
-    // Status & Speed
     const statAbbr = status === 'APPROACHING' ? 'APPR' : status === 'HOLDING' ? 'HOLD' : status === 'LANDING' ? 'LNDG' : 'DEP';
     ctx.fillText(`${statAbbr} S:${Math.round(flight.speed * 40)}KTS`, tagX - 31, tagY + 12);
   }
@@ -590,18 +507,17 @@ function drawTrail(ctx, flight) {
   const trail = flight.trail;
   if (trail.length < 2) return;
 
-  const isDepart = flight.status === 'DEPARTING';
-  ctx.strokeStyle = isDepart ? COLORS.flightTrailDepart : COLORS.flightTrail;
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2]);
 
   ctx.beginPath();
   ctx.moveTo(trail[0].x, trail[0].y);
   for (let i = 1; i < trail.length; i++) {
-    ctx.globalAlpha = (i / trail.length) * 0.5;
     ctx.lineTo(trail[i].x, trail[i].y);
   }
   ctx.stroke();
-  ctx.globalAlpha = 1;
+  ctx.setLineDash([]);
 }
 
 function drawConflictHighlight(ctx, f1, f2, severity) {
@@ -609,10 +525,9 @@ function drawConflictHighlight(ctx, f1, f2, severity) {
   const cy = (f1.y + f2.y) / 2;
   const radius = 20;
 
-  // Pulsing circle
   const pulse = Math.sin(Date.now() * 0.008) * 0.3 + 0.7;
 
-  ctx.strokeStyle = severity === 'CRITICAL' ? COLORS.danger : COLORS.warning;
+  ctx.strokeStyle = severity === 'CRITICAL' ? '#dc2626' : '#d97706';
   ctx.lineWidth = 2;
   ctx.globalAlpha = pulse;
 
@@ -620,7 +535,6 @@ function drawConflictHighlight(ctx, f1, f2, severity) {
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
   ctx.stroke();
 
-  // Line between conflicting aircraft
   ctx.setLineDash([4, 4]);
   ctx.beginPath();
   ctx.moveTo(f1.x, f1.y);
@@ -636,19 +550,17 @@ function drawStormCell(ctx, stormCell) {
 
   const { x, y, radius } = stormCell;
 
-  // Storm gradient
   const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
-  gradient.addColorStop(0, 'rgba(249, 115, 22, 0.25)');
-  gradient.addColorStop(0.5, 'rgba(249, 115, 22, 0.12)');
-  gradient.addColorStop(1, 'rgba(249, 115, 22, 0)');
+  gradient.addColorStop(0, 'rgba(239, 68, 68, 0.4)');
+  gradient.addColorStop(0.5, 'rgba(239, 68, 68, 0.2)');
+  gradient.addColorStop(1, 'rgba(239, 68, 68, 0)');
 
   ctx.fillStyle = gradient;
   ctx.beginPath();
   ctx.arc(x, y, radius, 0, Math.PI * 2);
   ctx.fill();
 
-  // Storm border
-  ctx.strokeStyle = 'rgba(249, 115, 22, 0.4)';
+  ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
   ctx.lineWidth = 1;
   ctx.setLineDash([5, 5]);
   ctx.beginPath();
@@ -656,30 +568,14 @@ function drawStormCell(ctx, stormCell) {
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // Lightning bolts (random)
-  if (Math.random() < 0.05) {
-    ctx.strokeStyle = 'rgba(255, 255, 100, 0.8)';
-    ctx.lineWidth = 1;
-    const lx = x + (Math.random() - 0.5) * radius;
-    const ly = y + (Math.random() - 0.5) * radius;
-    ctx.beginPath();
-    ctx.moveTo(lx, ly);
-    ctx.lineTo(lx + 5, ly + 10);
-    ctx.lineTo(lx - 3, ly + 12);
-    ctx.lineTo(lx + 2, ly + 22);
-    ctx.stroke();
-  }
-
-  // Storm label
-  ctx.fillStyle = 'rgba(249, 115, 22, 0.6)';
-  ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.fillStyle = 'rgba(220, 38, 38, 0.9)';
+  ctx.font = 'bold 10px Arial';
   ctx.textAlign = 'center';
   ctx.fillText('⛈ STORM', x, y - radius - 8);
 }
 
 function drawWeatherOverlay(ctx) {
-  // Subtle rain effect
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.3)';
   ctx.lineWidth = 1;
   for (let i = 0; i < 30; i++) {
     const rx = Math.random() * AIRPORT_WIDTH;
@@ -694,14 +590,13 @@ function drawWeatherOverlay(ctx) {
 function drawCompass(ctx, cx, cy) {
   const r = 18;
 
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+  ctx.strokeStyle = '#000000';
   ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
 
-  // N pointer
-  ctx.fillStyle = COLORS.danger;
+  ctx.fillStyle = '#000000';
   ctx.beginPath();
   ctx.moveTo(cx, cy - r + 2);
   ctx.lineTo(cx - 3, cy - r + 8);
@@ -709,8 +604,8 @@ function drawCompass(ctx, cx, cy) {
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = 'rgba(148, 163, 184, 0.5)';
-  ctx.font = 'bold 8px Inter, sans-serif';
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 8px Arial';
   ctx.textAlign = 'center';
   ctx.fillText('N', cx, cy - r - 4);
   ctx.fillText('S', cx, cy + r + 10);
