@@ -137,3 +137,181 @@ export function discretize(value, thresholds) {
 export function makeStateKey(...values) {
   return values.join('_');
 }
+
+class DenseLayer {
+  constructor(inputSize, outputSize, activation = 'relu') {
+    this.inputSize = inputSize;
+    this.outputSize = outputSize;
+    this.activation = activation;
+    
+    // Xavier/Glorot Initialization
+    const limit = Math.sqrt(6.0 / (inputSize + outputSize));
+    this.weights = Array.from({ length: inputSize }, () =>
+      Array.from({ length: outputSize }, () => (Math.random() * 2 - 1) * limit)
+    );
+    this.biases = Array.from({ length: outputSize }, () => 0.0);
+    
+    this.inputs = null;
+    this.outputs = null;
+    this.dWeights = Array.from({ length: inputSize }, () => Array.from({ length: outputSize }, () => 0.0));
+    this.dBiases = Array.from({ length: outputSize }, () => 0.0);
+  }
+
+  forward(inputs) {
+    this.inputs = inputs;
+    const outputs = Array.from({ length: this.outputSize }, () => 0.0);
+
+    for (let j = 0; j < this.outputSize; j++) {
+      let sum = this.biases[j];
+      for (let i = 0; i < this.inputSize; i++) {
+        sum += inputs[i] * this.weights[i][j];
+      }
+      
+      if (this.activation === 'relu') {
+        outputs[j] = Math.max(0, sum);
+      } else {
+        outputs[j] = sum;
+      }
+    }
+    
+    this.outputs = outputs;
+    return outputs;
+  }
+
+  backward(dOutputs, learningRate) {
+    const dInputs = Array.from({ length: this.inputSize }, () => 0.0);
+
+    for (let j = 0; j < this.outputSize; j++) {
+      let dAct = dOutputs[j];
+      if (this.activation === 'relu' && this.outputs[j] <= 0) {
+        dAct = 0;
+      }
+
+      this.dBiases[j] = dAct;
+      
+      for (let i = 0; i < this.inputSize; i++) {
+        this.dWeights[i][j] = this.inputs[i] * dAct;
+        dInputs[i] += this.weights[i][j] * dAct;
+      }
+    }
+
+    // Weight and bias gradient updates
+    for (let j = 0; j < this.outputSize; j++) {
+      this.biases[j] -= learningRate * this.dBiases[j];
+      for (let i = 0; i < this.inputSize; i++) {
+        this.weights[i][j] -= learningRate * this.dWeights[i][j];
+      }
+    }
+
+    return dInputs;
+  }
+}
+
+export class DeepQNetwork {
+  constructor(actions, inputSize, hiddenSizes = [32, 16], options = {}) {
+    this.actions = actions;
+    this.alpha = options.alpha || 0.01;      // Learning rate
+    this.gamma = options.gamma || 0.9;       // Discount factor
+    this.epsilon = options.epsilon || 0.15;  // Exploration rate
+    this.epsilonDecay = options.epsilonDecay || 0.9995;
+    this.epsilonMin = options.epsilonMin || 0.05;
+    this.updateCount = 0;
+
+    this.layers = [];
+    let currentInputSize = inputSize;
+    for (let i = 0; i < hiddenSizes.length; i++) {
+      this.layers.push(new DenseLayer(currentInputSize, hiddenSizes[i], 'relu'));
+      currentInputSize = hiddenSizes[i];
+    }
+    this.layers.push(new DenseLayer(currentInputSize, actions.length, 'linear'));
+  }
+
+  predict(inputs) {
+    let current = inputs;
+    for (const layer of this.layers) {
+      current = layer.forward(current);
+    }
+    return current;
+  }
+
+  chooseAction(stateVector) {
+    const isExplore = Math.random() < this.epsilon;
+    const qValues = this.predict(stateVector);
+
+    if (isExplore) {
+      const actionIndex = Math.floor(Math.random() * this.actions.length);
+      return {
+        action: this.actions[actionIndex],
+        qValue: qValues[actionIndex],
+        wasExploration: true,
+      };
+    }
+
+    let bestIndex = 0;
+    let bestValue = qValues[0];
+    for (let i = 1; i < qValues.length; i++) {
+      if (qValues[i] > bestValue) {
+        bestValue = qValues[i];
+        bestIndex = i;
+      }
+    }
+
+    return {
+      action: this.actions[bestIndex],
+      qValue: bestValue,
+      wasExploration: false,
+    };
+  }
+
+  learn(stateVector, action, reward, nextStateVector) {
+    const currentQ = this.predict(stateVector);
+    const actionIndex = this.actions.indexOf(action);
+    if (actionIndex === -1) return 0;
+
+    const nextQ = this.predict(nextStateVector);
+    const maxNextQ = Math.max(...nextQ);
+
+    const targetQ = reward + this.gamma * maxNextQ;
+
+    const dOutputs = Array.from({ length: this.actions.length }, () => 0.0);
+    dOutputs[actionIndex] = currentQ[actionIndex] - targetQ;
+
+    let currentGradients = dOutputs;
+    for (let i = this.layers.length - 1; i >= 0; i--) {
+      currentGradients = this.layers[i].backward(currentGradients, this.alpha);
+    }
+
+    this.epsilon = Math.max(this.epsilonMin, this.epsilon * this.epsilonDecay);
+    this.updateCount++;
+
+    return currentQ[actionIndex];
+  }
+
+  seed(samples, epochs = 20) {
+    for (let epoch = 0; epoch < epochs; epoch++) {
+      for (const sample of samples) {
+        const actionIdx = this.actions.indexOf(sample.action);
+        if (actionIdx === -1) continue;
+
+        const currentQ = this.predict(sample.state);
+        const dOutputs = Array.from({ length: this.actions.length }, () => 0.0);
+        dOutputs[actionIdx] = currentQ[actionIdx] - sample.targetQ;
+
+        let currentGradients = dOutputs;
+        for (let i = this.layers.length - 1; i >= 0; i--) {
+          currentGradients = this.layers[i].backward(currentGradients, this.alpha);
+        }
+      }
+    }
+  }
+
+  getStats() {
+    return {
+      type: 'Deep Q-Network (DQN)',
+      updates: this.updateCount,
+      epsilon: this.epsilon.toFixed(3),
+      layers: this.layers.length,
+      neurons: `${this.layers[0].inputSize} → ${this.layers.map(l => l.outputSize).join(' → ')}`,
+    };
+  }
+}

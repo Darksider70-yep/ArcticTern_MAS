@@ -66,6 +66,25 @@ function AgentCard({ agent, snapshot }) {
         <div className="agent-action-tag" style={{ backgroundColor: color + '20', color }}>
           {data.action || 'Idle'}
         </div>
+        {data.qStats && (
+          <div className="agent-dqn-stats" style={{
+            marginTop: '8px',
+            paddingTop: '6px',
+            borderTop: '1px dotted rgba(255,255,255,0.08)',
+            fontSize: '9px',
+            fontFamily: 'var(--font-mono)',
+            color: 'var(--text-muted)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+              <span>🧠 DQN layers:</span>
+              <span style={{ color: 'var(--text-secondary)', fontWeight: 'bold' }}>{data.qStats.neurons}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>⚡ Epsilon:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>{data.qStats.epsilon} (updates: {data.qStats.updates})</span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -92,6 +111,7 @@ function getAgentData(key, snapshot) {
         secondaryLabel: 'Throughput',
         secondaryValue: `${r.throughput || 0} ops`,
         action: r.lastAction,
+        qStats: r.qStats,
       };
     }
     case 'gate': {
@@ -102,6 +122,7 @@ function getAgentData(key, snapshot) {
         secondaryLabel: 'Waiting',
         secondaryValue: `${g.waitingCount || 0} aircraft`,
         action: g.lastAction,
+        qStats: g.qStats,
       };
     }
     case 'traffic': {
@@ -131,6 +152,7 @@ function getAgentData(key, snapshot) {
         secondaryLabel: 'Status',
         secondaryValue: getFlightSummary(snapshot.flights),
         action: snapshot.activeFlightCount > 0 ? 'ACTIVE' : 'IDLE',
+        qStats: snapshot.flightQStats,
       };
     }
     default:

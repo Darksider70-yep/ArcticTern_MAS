@@ -1,7 +1,7 @@
 // ArcticTern ATC — Runway Agent
 // Manages runway sequencing, separation, and utilization using Q-Learning
 
-import { QTable, discretize, makeStateKey } from '../QLearning.js';
+import { DeepQNetwork } from '../QLearning.js';
 
 const ACTIONS = ['CLEAR_LANDING', 'CLEAR_TAKEOFF', 'HOLD', 'SWITCH_RUNWAY'];
 
@@ -15,7 +15,7 @@ export class RunwayAgent {
       queue: [],
       totalOps: 0,
     }));
-    this.qTable = new QTable(ACTIONS, { epsilon: 0.2, alpha: 0.1, gamma: 0.9 });
+    this.qTable = new DeepQNetwork(ACTIONS, 5, [32, 16], { epsilon: 0.2, alpha: 0.01, gamma: 0.9 });
     this.lastAction = 'HOLD';
     this.lastDecision = {};
     this.totalThroughput = 0;
@@ -26,34 +26,36 @@ export class RunwayAgent {
   }
 
   _preSeed() {
-    // Prefer clearing landing when queue is long and runway is free
-    this.qTable.seed({
-      '2_0_0_0': { CLEAR_LANDING: 0.8, HOLD: 0.1, CLEAR_TAKEOFF: 0.3, SWITCH_RUNWAY: -0.1 },
-      '1_0_0_0': { CLEAR_LANDING: 0.7, HOLD: 0.2, CLEAR_TAKEOFF: 0.4, SWITCH_RUNWAY: -0.1 },
-      '0_0_0_0': { HOLD: 0.5, CLEAR_TAKEOFF: 0.3, CLEAR_LANDING: 0.1, SWITCH_RUNWAY: -0.1 },
-      '2_1_0_0': { HOLD: 0.6, CLEAR_LANDING: -0.2, CLEAR_TAKEOFF: -0.2, SWITCH_RUNWAY: 0.3 },
-      '2_0_1_0': { HOLD: 0.4, CLEAR_LANDING: 0.2, CLEAR_TAKEOFF: 0.1, SWITCH_RUNWAY: 0.5 },
-      '1_0_0_1': { CLEAR_TAKEOFF: 0.6, HOLD: 0.2, CLEAR_LANDING: 0.3, SWITCH_RUNWAY: -0.1 },
-    });
+    this.qTable.seed([
+      // state: [totalQueue, anyOccupied, weatherSeverity, hasDepartures, utilization]
+      { state: [0.3, 0.0, 0.1, 0.0, 0.0], action: 'CLEAR_LANDING', targetQ: 0.8 },
+      { state: [0.3, 0.0, 0.1, 0.0, 0.0], action: 'HOLD', targetQ: 0.1 },
+      
+      { state: [0.0, 0.0, 0.1, 1.0, 0.0], action: 'CLEAR_TAKEOFF', targetQ: 0.8 },
+      { state: [0.0, 0.0, 0.1, 1.0, 0.0], action: 'HOLD', targetQ: 0.2 },
+
+      { state: [0.5, 1.0, 0.8, 1.0, 0.8], action: 'SWITCH_RUNWAY', targetQ: 0.7 },
+      { state: [0.5, 1.0, 0.8, 1.0, 0.8], action: 'HOLD', targetQ: 0.3 },
+    ], 30);
   }
 
-  getState(weatherSeverity) {
+  getStateVector(weatherSeverity) {
     const totalQueue = this.runways.reduce((sum, r) => sum + r.queue.length, 0);
-    const anyOccupied = this.runways.some(r => r.occupied) ? 1 : 0;
-    const weatherBucket = discretize(weatherSeverity, [3, 7]);
-    const hasDepartures = this.runways.some(r => r.queue.some(f => f.type === 'departure')) ? 1 : 0;
+    const anyOccupied = this.runways.some(r => r.occupied) ? 1.0 : 0.0;
+    const hasDepartures = this.runways.some(r => r.queue.some(f => f.type === 'departure')) ? 1.0 : 0.0;
 
-    return makeStateKey(
-      discretize(totalQueue, [1, 3, 6]),
+    return [
+      totalQueue / 20.0,
       anyOccupied,
-      weatherBucket,
-      hasDepartures
-    );
+      weatherSeverity / 10.0,
+      hasDepartures,
+      this.getUtilization() / 100.0,
+    ];
   }
 
   decide(flights, weatherState) {
-    const state = this.getState(weatherState.intensity);
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(state);
+    const stateVec = this.getStateVector(weatherState.intensity);
+    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
 
     let reward = 0;
     const decision = { action, qValue, wasExploration };
@@ -135,8 +137,8 @@ export class RunwayAgent {
     }
 
     // Learn from this step
-    const nextState = this.getState(weatherState.intensity);
-    this.qTable.learn(state, action, reward, nextState);
+    const nextStateVec = this.getStateVector(weatherState.intensity);
+    this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;

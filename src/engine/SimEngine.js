@@ -6,7 +6,7 @@ import { WeatherAgent } from './agents/WeatherAgent.js';
 import { RunwayAgent } from './agents/RunwayAgent.js';
 import { GateAgent } from './agents/GateAgent.js';
 import { TrafficAgent } from './agents/TrafficAgent.js';
-import { FlightAgent, FLIGHT_STATUS } from './agents/FlightAgent.js';
+import { FlightAgent, FLIGHT_STATUS, sharedDQN } from './agents/FlightAgent.js';
 import { Coordinator } from './agents/Coordinator.js';
 import { createNarrationEntry } from '../utils/narration.js';
 
@@ -516,6 +516,7 @@ export class SimEngine {
         runwayStatus,
         gateStatus
       ),
+      flightQStats: sharedDQN.getStats(),
     };
   }
 }

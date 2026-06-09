@@ -1,22 +1,34 @@
 // ArcticTern ATC — Flight Agent
 // Per-aircraft autonomous agent using Q-Learning
 
-import { QTable, discretize, makeStateKey } from '../QLearning.js';
+import { QTable, DeepQNetwork } from '../QLearning.js';
 import { AIRCRAFT_TYPES, generateCallsign, APPROACH_PATHS, RUNWAYS, HOLDING_ZONES, GATES } from '../Airport.js';
 import { mapCoordsToCanvas, getAircraftInfo } from '../../utils/flightApi.js';
 
 const ACTIONS = ['REQUEST_LANDING', 'HOLD_PATTERN', 'DIVERT', 'REQUEST_TAKEOFF', 'TAXI_TO_GATE', 'TAXI_TO_RUNWAY'];
 
-// Shared Q-table across all flight agents (they learn collectively)
-const sharedQTable = new QTable(ACTIONS, { epsilon: 0.15, alpha: 0.1, gamma: 0.9 });
+// Shared DQN across all flight agents (they learn collectively)
+export const sharedDQN = new DeepQNetwork(ACTIONS, 6, [32, 16], { epsilon: 0.15, alpha: 0.01, gamma: 0.9 });
 
-// Pre-seed shared flight Q-table
-sharedQTable.seed({
-  '0_2_0_0': { REQUEST_LANDING: 0.9, HOLD_PATTERN: 0.3, DIVERT: -0.5, REQUEST_TAKEOFF: -0.8, TAXI_TO_GATE: -0.5, TAXI_TO_RUNWAY: -0.5 },
-  '1_2_0_0': { REQUEST_LANDING: 0.7, HOLD_PATTERN: 0.5, DIVERT: -0.3, REQUEST_TAKEOFF: -0.8, TAXI_TO_GATE: -0.5, TAXI_TO_RUNWAY: -0.5 },
-  '2_1_0_0': { REQUEST_LANDING: 0.3, HOLD_PATTERN: 0.2, DIVERT: 0.6, REQUEST_TAKEOFF: -0.8, TAXI_TO_GATE: -0.5, TAXI_TO_RUNWAY: -0.5 },
-  '0_2_1_0': { REQUEST_LANDING: 0.5, HOLD_PATTERN: 0.7, DIVERT: -0.2, REQUEST_TAKEOFF: -0.8, TAXI_TO_GATE: -0.5, TAXI_TO_RUNWAY: -0.5 },
-});
+// Pre-seed shared flight DQN with continuous vectors
+sharedDQN.seed([
+  // state: [weather, fuel, queue, holding, distance, altitude]
+  { state: [0.1, 0.9, 0.1, 0.0, 0.4, 0.3], action: 'REQUEST_LANDING', targetQ: 0.9 },
+  { state: [0.1, 0.9, 0.1, 0.0, 0.4, 0.3], action: 'HOLD_PATTERN', targetQ: 0.1 },
+  { state: [0.1, 0.9, 0.1, 0.0, 0.4, 0.3], action: 'DIVERT', targetQ: -0.5 },
+
+  { state: [0.2, 0.7, 0.6, 1.0, 0.1, 0.2], action: 'REQUEST_LANDING', targetQ: 0.6 },
+  { state: [0.2, 0.7, 0.6, 1.0, 0.1, 0.2], action: 'HOLD_PATTERN', targetQ: 0.8 },
+  { state: [0.2, 0.7, 0.6, 1.0, 0.1, 0.2], action: 'DIVERT', targetQ: -0.3 },
+
+  { state: [0.8, 0.1, 0.8, 1.0, 0.1, 0.2], action: 'DIVERT', targetQ: 0.9 },
+  { state: [0.8, 0.1, 0.8, 1.0, 0.1, 0.2], action: 'REQUEST_LANDING', targetQ: -0.3 },
+  { state: [0.8, 0.1, 0.8, 1.0, 0.1, 0.2], action: 'HOLD_PATTERN', targetQ: -0.8 },
+
+  { state: [0.1, 0.15, 0.8, 1.0, 0.1, 0.1], action: 'REQUEST_LANDING', targetQ: 0.95 },
+  { state: [0.1, 0.15, 0.8, 1.0, 0.1, 0.1], action: 'HOLD_PATTERN', targetQ: -0.9 },
+  { state: [0.1, 0.15, 0.8, 1.0, 0.1, 0.1], action: 'DIVERT', targetQ: -0.3 },
+], 30);
 
 // Flight statuses
 export const FLIGHT_STATUS = {
@@ -80,20 +92,22 @@ export class FlightAgent {
     this.createdAt = 0;
     this.landedAt = null;
     this.departedAt = null;
-    this.qTable = sharedQTable;
+    this.qTable = sharedDQN;
 
     // Path for taxiing
     this.path = [];
     this.pathIndex = 0;
   }
 
-  getStateKey(weatherSeverity, queuePosition) {
-    return makeStateKey(
-      discretize(weatherSeverity, [3, 7]),
-      discretize(this.fuel, [20, 50]),
-      discretize(queuePosition, [2, 5]),
-      this.status === FLIGHT_STATUS.HOLDING ? 1 : 0
-    );
+  getStateVector(weatherSeverity, queuePosition) {
+    return [
+      weatherSeverity / 10.0,
+      this.fuel / 100.0,
+      queuePosition / 10.0,
+      this.status === FLIGHT_STATUS.HOLDING ? 1.0 : 0.0,
+      this.getDistanceToAirport() / 1200.0,
+      this.altitude / 10000.0,
+    ];
   }
 
   decide(weatherSeverity, queuePosition) {
@@ -101,8 +115,8 @@ export class FlightAgent {
       return null;
     }
 
-    const state = this.getStateKey(weatherSeverity, queuePosition);
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(state);
+    const stateVec = this.getStateVector(weatherSeverity, queuePosition);
+    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
 
     let reward;
     let effectiveAction = action;
@@ -136,8 +150,8 @@ export class FlightAgent {
     }
 
     // Learn
-    const nextState = this.getStateKey(weatherSeverity, queuePosition);
-    this.qTable.learn(state, effectiveAction, reward, nextState);
+    const nextStateVec = this.getStateVector(weatherSeverity, queuePosition);
+    this.qTable.learn(stateVec, effectiveAction, reward, nextStateVec);
 
     this.lastAction = effectiveAction;
     return {

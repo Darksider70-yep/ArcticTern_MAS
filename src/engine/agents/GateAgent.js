@@ -1,7 +1,7 @@
 // ArcticTern ATC — Gate Agent
 // Handles gate allocation and turnaround management using Q-Learning
 
-import { QTable, discretize, makeStateKey } from '../QLearning.js';
+import { DeepQNetwork } from '../QLearning.js';
 import { GATES } from '../Airport.js';
 
 const ACTIONS = ['ASSIGN_GATE', 'REASSIGN', 'HOLD_TAXIWAY', 'RELEASE'];
@@ -15,7 +15,7 @@ export class GateAgent {
       turnaroundTimer: 0,
       turnaroundTotal: 0,
     }));
-    this.qTable = new QTable(ACTIONS, { epsilon: 0.2, alpha: 0.1, gamma: 0.9 });
+    this.qTable = new DeepQNetwork(ACTIONS, 4, [32, 16], { epsilon: 0.2, alpha: 0.01, gamma: 0.9 });
     this.waitingQueue = [];
     this.lastAction = 'HOLD_TAXIWAY';
     this.lastDecision = {};
@@ -26,30 +26,35 @@ export class GateAgent {
   }
 
   _preSeed() {
-    this.qTable.seed({
-      '0_1_0': { ASSIGN_GATE: 0.9, HOLD_TAXIWAY: 0.1, REASSIGN: -0.1, RELEASE: -0.2 },
-      '0_0_0': { HOLD_TAXIWAY: 0.3, ASSIGN_GATE: 0.1, RELEASE: -0.1, REASSIGN: -0.1 },
-      '1_1_0': { ASSIGN_GATE: 0.7, HOLD_TAXIWAY: 0.3, REASSIGN: 0.2, RELEASE: -0.1 },
-      '2_1_0': { ASSIGN_GATE: 0.5, REASSIGN: 0.4, HOLD_TAXIWAY: 0.3, RELEASE: -0.1 },
-      '2_0_0': { HOLD_TAXIWAY: 0.5, REASSIGN: 0.3, ASSIGN_GATE: -0.2, RELEASE: -0.1 },
-    });
+    this.qTable.seed([
+      // state: [freeGatesCount, pendingArrivals, hasReadyRelease, gateUtilization]
+      { state: [0.5, 0.1, 0.0, 0.5], action: 'ASSIGN_GATE', targetQ: 0.9 },
+      { state: [0.5, 0.1, 0.0, 0.5], action: 'HOLD_TAXIWAY', targetQ: 0.1 },
+
+      { state: [0.0, 0.3, 0.0, 1.0], action: 'HOLD_TAXIWAY', targetQ: 0.8 },
+      { state: [0.0, 0.3, 0.0, 1.0], action: 'ASSIGN_GATE', targetQ: -0.2 },
+
+      { state: [0.2, 0.1, 1.0, 0.8], action: 'RELEASE', targetQ: 0.9 },
+      { state: [0.2, 0.1, 1.0, 0.8], action: 'ASSIGN_GATE', targetQ: 0.4 },
+    ], 30);
   }
 
-  getState() {
+  getStateVector() {
     const freeGates = this.gates.filter(g => !g.occupied).length;
     const pendingArrivals = this.waitingQueue.length;
-    const hasReadyRelease = this.gates.some(g => g.occupied && g.turnaroundTimer <= 0) ? 1 : 0;
+    const hasReadyRelease = this.gates.some(g => g.occupied && g.turnaroundTimer <= 0) ? 1.0 : 0.0;
 
-    return makeStateKey(
-      discretize(freeGates, [1, 3, 5]),
-      discretize(pendingArrivals, [1, 3]),
-      hasReadyRelease
-    );
+    return [
+      freeGates / this.gates.length,
+      pendingArrivals / 10.0,
+      hasReadyRelease,
+      this.getUtilization() / 100.0,
+    ];
   }
 
   decide() {
-    const state = this.getState();
-    const { action, qValue, wasExploration } = this.qTable.chooseAction(state);
+    const stateVec = this.getStateVector();
+    const { action, qValue, wasExploration } = this.qTable.chooseAction(stateVec);
 
     let reward = 0;
     const decision = { action, qValue, wasExploration };
@@ -116,8 +121,8 @@ export class GateAgent {
       }
     }
 
-    const nextState = this.getState();
-    this.qTable.learn(state, action, reward, nextState);
+    const nextStateVec = this.getStateVector();
+    this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;
