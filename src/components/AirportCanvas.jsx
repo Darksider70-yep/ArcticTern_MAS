@@ -146,22 +146,31 @@ function drawStaticLayer(ctx) {
 
   // Runways
   for (const runway of RUNWAYS) {
+    const dx = runway.x2 - runway.x1;
+    const dy = runway.y2 - runway.y1;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    const angle = Math.atan2(dy, dx);
+
+    ctx.save();
+    ctx.translate(runway.x1, runway.y1);
+    ctx.rotate(angle);
+
     // Runway surface
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(runway.x1, runway.y1 - runway.width / 2, runway.x2 - runway.x1, runway.width);
+    ctx.fillRect(0, -runway.width / 2, len, runway.width);
 
     // Runway border
     ctx.strokeStyle = COLORS.runway;
     ctx.lineWidth = 2;
-    ctx.strokeRect(runway.x1, runway.y1 - runway.width / 2, runway.x2 - runway.x1, runway.width);
+    ctx.strokeRect(0, -runway.width / 2, len, runway.width);
 
     // Center line (dashed)
     ctx.strokeStyle = COLORS.runwayMarkings;
     ctx.lineWidth = 1;
     ctx.setLineDash([15, 10]);
     ctx.beginPath();
-    ctx.moveTo(runway.x1 + 20, runway.y1);
-    ctx.lineTo(runway.x2 - 20, runway.y1);
+    ctx.moveTo(20, 0);
+    ctx.lineTo(len - 20, 0);
     ctx.stroke();
     ctx.setLineDash([]);
 
@@ -169,16 +178,18 @@ function drawStaticLayer(ctx) {
     for (let i = -4; i <= 4; i += 2) {
       if (i === 0) continue;
       ctx.fillStyle = COLORS.runwayMarkings;
-      ctx.fillRect(runway.x1 + 10, runway.y1 + i - 0.5, 20, 1);
-      ctx.fillRect(runway.x2 - 30, runway.y1 + i - 0.5, 20, 1);
+      ctx.fillRect(10, i - 0.5, 20, 1);
+      ctx.fillRect(len - 30, i - 0.5, 20, 1);
     }
 
     // Runway labels
     ctx.fillStyle = COLORS.textSecondary;
     ctx.font = '10px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(runway.name.split('/')[0], runway.x1 + 40, runway.y1 + 4);
-    ctx.fillText(runway.name.split('/')[1], runway.x2 - 40, runway.y1 + 4);
+    ctx.fillText(runway.name.split('/')[0], 40, 4);
+    ctx.fillText(runway.name.split('/')[1], len - 40, 4);
+
+    ctx.restore();
   }
 
   // Terminal buildings
@@ -190,6 +201,26 @@ function drawStaticLayer(ctx) {
     roundRect(ctx, term.x, term.y, term.width, term.height, r);
     ctx.fill();
     ctx.stroke();
+
+    // Draw realistic terminal piers/fingers
+    if (term.id === 'T3') {
+      ctx.fillStyle = COLORS.terminal;
+      ctx.strokeStyle = COLORS.terminalOutline;
+      ctx.lineWidth = 2;
+      // Pier 1
+      ctx.fillRect(340, 435, 15, 30);
+      ctx.strokeRect(340, 435, 15, 30);
+      // Pier 2
+      ctx.fillRect(450, 435, 15, 30);
+      ctx.strokeRect(450, 435, 15, 30);
+      // Pier 3
+      ctx.fillRect(560, 435, 15, 30);
+      ctx.strokeRect(560, 435, 15, 30);
+    } else if (term.id === 'T1') {
+      ctx.beginPath();
+      ctx.arc(700, 240, 15, Math.PI, Math.PI * 1.5);
+      ctx.stroke();
+    }
 
     // Terminal label
     ctx.fillStyle = COLORS.textSecondary;
@@ -315,32 +346,55 @@ function drawDynamicLayer(ctx, snapshot) {
   if (snapshot.runway) {
     for (const runway of snapshot.runway.runways) {
       if (!runway.active) {
-        // Draw X over closed runway
         const rDef = RUNWAYS.find(r => r.name === runway.name);
         if (rDef) {
+          ctx.save();
+          const dx = rDef.x2 - rDef.x1;
+          const dy = rDef.y2 - rDef.y1;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+          
+          ctx.translate(rDef.x1, rDef.y1);
+          ctx.rotate(angle);
+
           ctx.strokeStyle = COLORS.danger;
           ctx.lineWidth = 3;
-          ctx.globalAlpha = 0.6;
-          ctx.beginPath();
-          ctx.moveTo(rDef.x1 + 50, rDef.y1 - 15);
-          ctx.lineTo(rDef.x2 - 50, rDef.y1 + 15);
-          ctx.stroke();
-          ctx.beginPath();
-          ctx.moveTo(rDef.x1 + 50, rDef.y1 + 15);
-          ctx.lineTo(rDef.x2 - 50, rDef.y1 - 15);
-          ctx.stroke();
-          ctx.globalAlpha = 1;
+          ctx.globalAlpha = 0.7;
+
+          // Draw X's along the runway length
+          for (let offset = 100; offset < len; offset += 200) {
+            ctx.beginPath();
+            ctx.moveTo(offset - 15, -10);
+            ctx.lineTo(offset + 15, 10);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(offset - 15, 10);
+            ctx.lineTo(offset + 15, -10);
+            ctx.stroke();
+          }
 
           ctx.fillStyle = COLORS.danger;
           ctx.font = 'bold 10px Inter, sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('CLOSED', (rDef.x1 + rDef.x2) / 2, rDef.y1 - 20);
+          ctx.fillText('CLOSED', len / 2, -15);
+          
+          ctx.restore();
         }
       } else if (runway.occupied) {
         const rDef = RUNWAYS.find(r => r.name === runway.name);
         if (rDef) {
+          ctx.save();
+          const dx = rDef.x2 - rDef.x1;
+          const dy = rDef.y2 - rDef.y1;
+          const len = Math.sqrt(dx * dx + dy * dy);
+          const angle = Math.atan2(dy, dx);
+
+          ctx.translate(rDef.x1, rDef.y1);
+          ctx.rotate(angle);
+
           ctx.fillStyle = 'rgba(34, 211, 238, 0.08)';
-          ctx.fillRect(rDef.x1, rDef.y1 - rDef.width / 2 - 2, rDef.x2 - rDef.x1, rDef.width + 4);
+          ctx.fillRect(0, -rDef.width / 2 - 2, len, rDef.width + 4);
+          ctx.restore();
         }
       }
     }

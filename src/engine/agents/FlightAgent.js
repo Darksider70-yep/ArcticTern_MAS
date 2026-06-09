@@ -191,14 +191,18 @@ export class FlightAgent {
 
       case FLIGHT_STATUS.LANDING: {
         const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
-        const runwayY = runway.y1;
-        this._moveToward((runway.x1 + runway.x2) / 2, runwayY, this.speed * 1.2);
+        const targetX = (runway.x1 + runway.x2) / 2;
+        const pct = Math.max(0, Math.min(1, (this.x - runway.x1) / (runway.x2 - runway.x1)));
+        const targetY = runway.y1 + pct * (runway.y2 - runway.y1);
+
+        this._moveToward(targetX, targetY, this.speed * 1.2);
         this.altitude = Math.max(0, this.altitude - 50);
-        if (Math.abs(this.y - runwayY) < 5 && this.x > runway.x1 && this.x < runway.x2) {
+
+        if (Math.abs(this.y - targetY) < 8 && this.x > runway.x1 && this.x < runway.x2) {
           this.status = FLIGHT_STATUS.LANDED;
           this.altitude = 0;
           this.landedAt = simTime;
-          this.y = runwayY;
+          this.y = targetY;
         }
         break;
       }
@@ -229,25 +233,32 @@ export class FlightAgent {
 
       case FLIGHT_STATUS.TAXIING_TO_RUNWAY: {
         const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
-        const runwayY = runway.y1;
         const runwayStartX = runway.x1 + 50;
-        this._moveToward(runwayStartX, runwayY, 1.5);
-        if (this._distanceTo(runwayStartX, runwayY) < 15) {
+        const pct = (runwayStartX - runway.x1) / (runway.x2 - runway.x1);
+        const runwayStartY = runway.y1 + pct * (runway.y2 - runway.y1);
+
+        this._moveToward(runwayStartX, runwayStartY, 1.5);
+        if (this._distanceTo(runwayStartX, runwayStartY) < 15) {
           this.status = FLIGHT_STATUS.DEPARTING;
-          this.heading = 90; // East
+          this.heading = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1) * 180 / Math.PI;
           this.speed = this.baseSpeed * 1.5;
         }
         break;
       }
 
-      case FLIGHT_STATUS.DEPARTING:
-        this.x += this.speed * 2;
+      case FLIGHT_STATUS.DEPARTING: {
+        const runway = RUNWAYS[this.assignedRunway] || RUNWAYS[0];
+        const headingRad = Math.atan2(runway.y2 - runway.y1, runway.x2 - runway.x1);
+        this.x += Math.cos(headingRad) * this.speed * 2;
+        this.y += Math.sin(headingRad) * this.speed * 2;
+        this.heading = headingRad * 180 / Math.PI;
         this.altitude += 30;
-        if (this.x > 1100) {
+        if (this.x > 1100 || this.x < -100 || this.y > 900 || this.y < -100) {
           this.status = FLIGHT_STATUS.DEPARTED;
           this.departedAt = simTime;
         }
         break;
+      }
 
       case FLIGHT_STATUS.DIVERTED:
         this._moveToward(-100, -100, this.speed);
@@ -285,7 +296,7 @@ export class FlightAgent {
     this.status = FLIGHT_STATUS.LANDING;
     const runway = RUNWAYS[runwayIndex] || RUNWAYS[0];
     this.targetX = (runway.x1 + runway.x2) / 2;
-    this.targetY = runway.y1;
+    this.targetY = runway.y1 + 0.5 * (runway.y2 - runway.y1);
   }
 
   assignGate(gate) {
