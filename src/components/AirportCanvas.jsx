@@ -27,13 +27,17 @@ export default function AirportCanvas({ snapshot }) {
     const canvas = staticCanvasRef.current;
     if (!canvas || staticDrawn.current) return;
 
+    const dpr = window.devicePixelRatio || 1;
     const scale = getScale();
     scaleRef.current = scale;
-    canvas.width = AIRPORT_WIDTH * scale;
-    canvas.height = AIRPORT_HEIGHT * scale;
+    
+    canvas.width = AIRPORT_WIDTH * scale * dpr;
+    canvas.height = AIRPORT_HEIGHT * scale * dpr;
+    canvas.style.width = `${AIRPORT_WIDTH * scale}px`;
+    canvas.style.height = `${AIRPORT_HEIGHT * scale}px`;
 
     const ctx = canvas.getContext('2d');
-    ctx.scale(scale, scale);
+    ctx.scale(scale * dpr, scale * dpr);
 
     drawStaticLayer(ctx);
     staticDrawn.current = true;
@@ -44,12 +48,16 @@ export default function AirportCanvas({ snapshot }) {
     const canvas = dynamicCanvasRef.current;
     if (!canvas || !snapshot) return;
 
+    const dpr = window.devicePixelRatio || 1;
     const scale = getScale();
-    canvas.width = AIRPORT_WIDTH * scale;
-    canvas.height = AIRPORT_HEIGHT * scale;
+    
+    canvas.width = AIRPORT_WIDTH * scale * dpr;
+    canvas.height = AIRPORT_HEIGHT * scale * dpr;
+    canvas.style.width = `${AIRPORT_WIDTH * scale}px`;
+    canvas.style.height = `${AIRPORT_HEIGHT * scale}px`;
 
     const ctx = canvas.getContext('2d');
-    ctx.scale(scale, scale);
+    ctx.scale(scale * dpr, scale * dpr);
     ctx.clearRect(0, 0, AIRPORT_WIDTH, AIRPORT_HEIGHT);
 
     drawDynamicLayer(ctx, snapshot);
@@ -63,12 +71,17 @@ export default function AirportCanvas({ snapshot }) {
       staticDrawn.current = false;
       const canvas = staticCanvasRef.current;
       if (canvas) {
+        const dpr = window.devicePixelRatio || 1;
         const scale = getScale();
         scaleRef.current = scale;
-        canvas.width = AIRPORT_WIDTH * scale;
-        canvas.height = AIRPORT_HEIGHT * scale;
+        
+        canvas.width = AIRPORT_WIDTH * scale * dpr;
+        canvas.height = AIRPORT_HEIGHT * scale * dpr;
+        canvas.style.width = `${AIRPORT_WIDTH * scale}px`;
+        canvas.style.height = `${AIRPORT_HEIGHT * scale}px`;
+        
         const ctx = canvas.getContext('2d');
-        ctx.scale(scale, scale);
+        ctx.scale(scale * dpr, scale * dpr);
         drawStaticLayer(ctx);
         staticDrawn.current = true;
       }
@@ -159,6 +172,15 @@ function drawStaticLayer(ctx) {
   ctx.fillRect(0, 340, AIRPORT_WIDTH, 160);
   ctx.fillRect(0, 540, AIRPORT_WIDTH, 110);
   ctx.fillRect(0, 690, AIRPORT_WIDTH, 110);
+
+  // Apron/Tarmac details for extra realism
+  ctx.fillStyle = COLORS.apron;
+  // T3 Apron
+  ctx.fillRect(160, 420, 290, 90);
+  // T2 Apron
+  ctx.fillRect(280, 360, 140, 70);
+  // T1 Apron
+  ctx.fillRect(650, 160, 200, 100);
 
   // Taxiways
   ctx.strokeStyle = COLORS.taxiway;
