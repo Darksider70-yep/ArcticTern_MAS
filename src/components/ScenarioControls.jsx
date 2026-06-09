@@ -11,8 +11,8 @@ export default function ScenarioControls({
   onSpeedChange,
   onTogglePlay,
   onReset,
-  closedRunwayIndex,
-  onClosedRunwayChange,
+  closedRunways,
+  onClosedRunwayToggle,
 }) {
   const scenarios = getScenarioList();
 
@@ -35,30 +35,53 @@ export default function ScenarioControls({
               </button>
 
               {sc.id === 'RUNWAY_CLOSURE' && isActive && (
-                <select
-                  value={closedRunwayIndex}
-                  onChange={(e) => onClosedRunwayChange(parseInt(e.target.value))}
-                  className="runway-select-dropdown"
+                <div
+                  className="runways-multiselect"
                   style={{
-                    background: 'rgba(10, 15, 28, 0.95)',
-                    border: '1px solid var(--color-runway)',
-                    borderRadius: '4px',
-                    color: 'var(--text-accent)',
-                    fontSize: '11px',
-                    padding: '4px 8px',
-                    fontFamily: 'var(--font-mono)',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    height: '28px',
-                    boxShadow: '0 0 8px rgba(59, 130, 246, 0.15)',
-                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    gap: '4px',
+                    marginLeft: '4px',
+                    alignItems: 'center',
                   }}
                 >
-                  <option value={0}>Close Runway 09/27</option>
-                  <option value={1}>Close Runway 10/28</option>
-                  <option value={2}>Close Runway 11L/29R</option>
-                  <option value={3}>Close Runway 11R/29L</option>
-                </select>
+                  {[
+                    { idx: 0, label: '09/27' },
+                    { idx: 1, label: '10/28' },
+                    { idx: 2, label: '11L/29R' },
+                    { idx: 3, label: '11R/29L' },
+                  ].map(r => {
+                    const isClosed = closedRunways.includes(r.idx);
+                    return (
+                      <button
+                        key={r.idx}
+                        onClick={() => onClosedRunwayToggle(r.idx)}
+                        className={`runway-toggle-btn ${isClosed ? 'closed' : 'open'}`}
+                        style={{
+                          background: isClosed ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.1)',
+                          border: isClosed ? '1px solid #ef4444' : '1px solid #10b981',
+                          borderRadius: '4px',
+                          color: isClosed ? '#ef4444' : '#10b981',
+                          fontSize: '10px',
+                          padding: '3px 6px',
+                          fontFamily: 'var(--font-mono)',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          boxShadow: isClosed ? '0 0 6px rgba(239, 68, 68, 0.15)' : 'none',
+                          transition: 'all 0.15s ease',
+                          height: '24px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                        }}
+                        title={isClosed ? `Runway ${r.label} closed. Click to open.` : `Runway ${r.label} open. Click to close.`}
+                      >
+                        <span>{r.label}</span>
+                        <span>{isClosed ? '❌' : '✅'}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               )}
             </div>
           );

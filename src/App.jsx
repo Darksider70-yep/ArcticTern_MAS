@@ -17,7 +17,7 @@ export default function App() {
   const [currentScenario, setCurrentScenario] = useState('NORMAL');
   const [speed, setSpeed] = useState(1);
   const [running, setRunning] = useState(false);
-  const [closedRunwayIndex, setClosedRunwayIndex] = useState(1); // Default to 1 (10/28)
+  const [closedRunways, setClosedRunways] = useState([1]); // Default to close 10/28 (index 1)
 
   // Initialize engine (handles StrictMode double-mount)
   useEffect(() => {
@@ -45,15 +45,15 @@ export default function App() {
     };
   }, []);
 
-  const handleScenarioChange = useCallback((scenarioId, customClosedRunwayIndex = null) => {
+  const handleScenarioChange = useCallback((scenarioId, customClosedRunways = null) => {
     const engine = engineRef.current;
     if (!engine) return;
 
-    const targetClosedRunway = customClosedRunwayIndex !== null ? customClosedRunwayIndex : closedRunwayIndex;
+    const targetClosedRunways = customClosedRunways !== null ? customClosedRunways : closedRunways;
 
     engine.pause();
     engine.reset(scenarioId, {
-      closedRunway: scenarioId === 'RUNWAY_CLOSURE' ? targetClosedRunway : null
+      closedRunways: scenarioId === 'RUNWAY_CLOSURE' ? targetClosedRunways : []
     });
     setCurrentScenario(scenarioId);
     setSnapshot(engine.getSnapshot());
@@ -63,11 +63,16 @@ export default function App() {
       engine.start();
       setRunning(true);
     }, 100);
-  }, [closedRunwayIndex]);
+  }, [closedRunways]);
 
-  const handleClosedRunwayChange = useCallback((index) => {
-    setClosedRunwayIndex(index);
-    handleScenarioChange('RUNWAY_CLOSURE', index);
+  const handleClosedRunwayToggle = useCallback((index) => {
+    setClosedRunways(prev => {
+      const next = prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index];
+      handleScenarioChange('RUNWAY_CLOSURE', next);
+      return next;
+    });
   }, [handleScenarioChange]);
 
   const handleSpeedChange = useCallback((newSpeed) => {
@@ -121,8 +126,8 @@ export default function App() {
             onSpeedChange={handleSpeedChange}
             onTogglePlay={handleTogglePlay}
             onReset={handleReset}
-            closedRunwayIndex={closedRunwayIndex}
-            onClosedRunwayChange={handleClosedRunwayChange}
+            closedRunways={closedRunways}
+            onClosedRunwayToggle={handleClosedRunwayToggle}
           />
         </section>
 

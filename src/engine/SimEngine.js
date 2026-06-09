@@ -20,10 +20,13 @@ export class SimEngine {
     const baseScenario = getScenario(scenarioId);
     const scenario = JSON.parse(JSON.stringify(baseScenario));
 
-    // Custom runway closure selection
-    if (scenarioId === 'RUNWAY_CLOSURE' && options.closedRunway !== undefined) {
-      scenario.runways.closedRunway = options.closedRunway;
-      scenario.runways.bothActive = (options.closedRunway === null);
+    // Custom runway closure selection (support array of closed runway indices)
+    if (scenarioId === 'RUNWAY_CLOSURE' && options.closedRunways !== undefined) {
+      scenario.runways.closedRunways = options.closedRunways;
+      scenario.runways.bothActive = (options.closedRunways.length === 0);
+    } else if (scenarioId === 'RUNWAY_CLOSURE') {
+      scenario.runways.closedRunways = [1]; // Default to close 10/28
+      scenario.runways.bothActive = false;
     }
 
     this.scenario = scenario;
@@ -50,8 +53,16 @@ export class SimEngine {
     }
 
     // Apply runway config
-    if (!scenario.runways.bothActive && scenario.runways.closedRunway !== null) {
-      this.runwayAgent.runways[scenario.runways.closedRunway].active = false;
+    if (!scenario.runways.bothActive) {
+      if (Array.isArray(scenario.runways.closedRunways)) {
+        for (const idx of scenario.runways.closedRunways) {
+          if (this.runwayAgent.runways[idx]) {
+            this.runwayAgent.runways[idx].active = false;
+          }
+        }
+      } else if (scenario.runways.closedRunway !== null && scenario.runways.closedRunway !== undefined) {
+        this.runwayAgent.runways[scenario.runways.closedRunway].active = false;
+      }
     }
 
     // Spawn initial flights
