@@ -1,5 +1,6 @@
 import os
 import random
+import threading
 from collections import deque
 import numpy as np
 import torch
@@ -57,6 +58,7 @@ class PyTorchDQNAgent:
         self.batch_size = 32
         self.update_count = 0
         self.target_update_interval = 100
+        self.lock = threading.Lock()
         
         # Checkpoint path
         self.checkpoint_path = f"{agent_name}_model.pth"
@@ -204,7 +206,8 @@ def decide(req: DecideRequest):
     agent = agents.get(req.agent_type)
     if not agent:
         return {"error": "Invalid agent type"}
-    action, q_value, was_exploration = agent.choose_action(req.state)
+    with agent.lock:
+        action, q_value, was_exploration = agent.choose_action(req.state)
     return {
         "action": action,
         "q_value": q_value,
@@ -219,8 +222,9 @@ def learn(req: LearnRequest):
     if not agent:
         return {"error": "Invalid agent type"}
     
-    agent.store_transition(req.state, req.action, req.reward, req.next_state)
-    loss = agent.train_step()
+    with agent.lock:
+        agent.store_transition(req.state, req.action, req.reward, req.next_state)
+        loss = agent.train_step()
     
     return {
         "loss": loss,
@@ -236,26 +240,27 @@ def seed(req: SeedRequest):
     
     # Simple supervised gradient step for seeding
     loss_val = 0.0
-    for sample in req.samples:
-        try:
-            action_idx = agent.actions.index(sample.action)
-        except ValueError:
-            continue
-        
-        state_t = torch.FloatTensor(sample.state).unsqueeze(0)
-        target = torch.FloatTensor([sample.targetQ])
-        
-        q_values = agent.policy_net(state_t)
-        current_val = q_values[0, action_idx].unsqueeze(0)
-        
-        loss = agent.loss_fn(current_val, target)
-        agent.optimizer.zero_grad()
-        loss.backward()
-        agent.optimizer.step()
-        loss_val += float(loss.item())
-        
-    # Sync target network after seeding
-    agent.target_net.load_state_dict(agent.policy_net.state_dict())
+    with agent.lock:
+        for sample in req.samples:
+            try:
+                action_idx = agent.actions.index(sample.action)
+            except ValueError:
+                continue
+            
+            state_t = torch.FloatTensor(sample.state).unsqueeze(0)
+            target = torch.FloatTensor([sample.targetQ])
+            
+            q_values = agent.policy_net(state_t)
+            current_val = q_values[0, action_idx].unsqueeze(0)
+            
+            loss = agent.loss_fn(current_val, target)
+            agent.optimizer.zero_grad()
+            loss.backward()
+            agent.optimizer.step()
+            loss_val += float(loss.item())
+            
+        # Sync target network after seeding
+        agent.target_net.load_state_dict(agent.policy_net.state_dict())
     return {"status": "seeded", "average_loss": loss_val / max(1, len(req.samples))}
 
 @app.get("/stats")
