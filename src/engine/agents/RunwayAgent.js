@@ -138,7 +138,7 @@ export class RunwayAgent {
 
     // Learn from this step
     const nextStateVec = this.getStateVector(weatherState.intensity);
-    await this.qTable.learn(stateVec, action, reward, nextStateVec);
+    this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;

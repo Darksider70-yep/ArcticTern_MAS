@@ -60,6 +60,9 @@ class PyTorchDQNAgent:
         self.target_update_interval = 100
         self.lock = threading.Lock()
         
+        self.step_count = 0
+        self.train_interval = 8
+        
         # Checkpoint path
         self.checkpoint_path = f"{agent_name}_model.pth"
         self.load_checkpoint()
@@ -85,6 +88,7 @@ class PyTorchDQNAgent:
         except ValueError:
             return  # invalid action
         self.memory.append((state, action_idx, reward, next_state))
+        self.step_count += 1
         
     def train_step(self):
         if len(self.memory) < self.batch_size:
@@ -129,15 +133,32 @@ class PyTorchDQNAgent:
 
     def save_checkpoint(self):
         try:
-            torch.save({
-                'policy_net': self.policy_net.state_dict(),
-                'target_net': self.target_net.state_dict(),
-                'optimizer': self.optimizer.state_dict(),
+            policy_state = {k: v.cpu().clone() for k, v in self.policy_net.state_dict().items()}
+            target_state = {k: v.cpu().clone() for k, v in self.target_net.state_dict().items()}
+            
+            import copy
+            try:
+                opt_state = copy.deepcopy(self.optimizer.state_dict())
+            except Exception:
+                opt_state = self.optimizer.state_dict()
+                
+            checkpoint_data = {
+                'policy_net': policy_state,
+                'target_net': target_state,
+                'optimizer': opt_state,
                 'update_count': self.update_count,
                 'epsilon': self.epsilon
-            }, self.checkpoint_path)
+            }
+            
+            def save_job():
+                try:
+                    torch.save(checkpoint_data, self.checkpoint_path)
+                except Exception as e:
+                    print(f"Error saving checkpoint in background: {e}")
+                    
+            threading.Thread(target=save_job, daemon=True).start()
         except Exception as e:
-            print(f"Error saving checkpoint: {e}")
+            print(f"Error preparing checkpoint for saving: {e}")
         
     def load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -192,6 +213,16 @@ class LearnRequest(BaseModel):
     reward: float
     next_state: list[float]
 
+class LearnSample(BaseModel):
+    state: list[float]
+    action: str
+    reward: float
+    next_state: list[float]
+
+class LearnBatchRequest(BaseModel):
+    agent_type: str
+    samples: list[LearnSample]
+
 class SeedSample(BaseModel):
     state: list[float]
     action: str
@@ -222,10 +253,34 @@ def learn(req: LearnRequest):
     if not agent:
         return {"error": "Invalid agent type"}
     
+    loss = 0.0
     with agent.lock:
         agent.store_transition(req.state, req.action, req.reward, req.next_state)
-        loss = agent.train_step()
+        if agent.step_count % agent.train_interval == 0:
+            loss = agent.train_step()
     
+    return {
+        "loss": loss,
+        "updates": agent.update_count,
+        "epsilon": agent.epsilon
+    }
+
+@app.post("/learn_batch")
+def learn_batch(req: LearnBatchRequest):
+    agent = agents.get(req.agent_type)
+    if not agent:
+        return {"error": "Invalid agent type"}
+    
+    loss = 0.0
+    with agent.lock:
+        for sample in req.samples:
+            agent.store_transition(sample.state, sample.action, sample.reward, sample.next_state)
+        
+        num_updates = len(req.samples) // agent.train_interval
+        if num_updates > 0:
+            for _ in range(min(num_updates, 4)):
+                loss = agent.train_step()
+                
     return {
         "loss": loss,
         "updates": agent.update_count,

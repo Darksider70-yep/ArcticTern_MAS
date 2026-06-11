@@ -122,7 +122,7 @@ export class GateAgent {
     }
 
     const nextStateVec = this.getStateVector();
-    await this.qTable.learn(stateVec, action, reward, nextStateVec);
+    this.qTable.learn(stateVec, action, reward, nextStateVec);
 
     this.lastAction = action;
     this.lastDecision = decision;

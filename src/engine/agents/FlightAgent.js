@@ -151,7 +151,7 @@ export class FlightAgent {
 
     // Learn
     const nextStateVec = this.getStateVector(weatherSeverity, queuePosition);
-    await this.qTable.learn(stateVec, effectiveAction, reward, nextStateVec);
+    this.qTable.learn(stateVec, effectiveAction, reward, nextStateVec);
 
     this.lastAction = effectiveAction;
     return {

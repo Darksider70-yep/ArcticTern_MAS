@@ -330,9 +330,14 @@ export class PythonDQNBridge {
       neurons: `${inputSize} → ${hiddenSizes.join(' → ')} → ${actions.length}`
     };
     this.usingLocalFallback = false;
+    this.pendingTransitions = [];
+    this.flushTimeout = null;
   }
 
   async chooseAction(stateVector) {
+    if (this.pendingTransitions.length > 0) {
+      this.flushTransitions();
+    }
     try {
       const response = await fetch(`${this.serverUrl}/decide`, {
         method: 'POST',
@@ -354,7 +359,7 @@ export class PythonDQNBridge {
       };
     } catch {
       if (!this.usingLocalFallback) {
-        console.warn(`[PythonDQNBridge] Python ML server offline. Falling back to local JS DQN for agent: \${this.agentType}`);
+        console.warn(`[PythonDQNBridge] Python ML server offline. Falling back to local JS DQN for agent: ${this.agentType}`);
         this.usingLocalFallback = true;
       }
       this.stats.type = 'JS DQN (Fallback)';
@@ -366,17 +371,43 @@ export class PythonDQNBridge {
     }
   }
 
-  async learn(stateVector, action, reward, nextStateVector) {
+  learn(stateVector, action, reward, nextStateVector) {
+    if (this.usingLocalFallback) {
+      this.localDQN.learn(stateVector, action, reward, nextStateVector);
+      return;
+    }
+
+    this.pendingTransitions.push({
+      state: stateVector,
+      action: action,
+      reward: reward,
+      next_state: nextStateVector
+    });
+
+    if (this.pendingTransitions.length >= 16) {
+      this.flushTransitions();
+    } else if (!this.flushTimeout) {
+      this.flushTimeout = setTimeout(() => this.flushTransitions(), 200);
+    }
+  }
+
+  async flushTransitions() {
+    if (this.flushTimeout) {
+      clearTimeout(this.flushTimeout);
+      this.flushTimeout = null;
+    }
+    if (this.pendingTransitions.length === 0) return;
+
+    const batch = [...this.pendingTransitions];
+    this.pendingTransitions = [];
+
     try {
-      const response = await fetch(`${this.serverUrl}/learn`, {
+      const response = await fetch(`${this.serverUrl}/learn_batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agent_type: this.agentType,
-          state: stateVector,
-          action: action,
-          reward: reward,
-          next_state: nextStateVector
+          samples: batch
         })
       });
       if (!response.ok) throw new Error('Server returned non-200');
@@ -384,10 +415,12 @@ export class PythonDQNBridge {
       
       this.stats.updates = data.updates;
       this.stats.epsilon = data.epsilon.toFixed(3);
-      return data.loss;
-    } catch {
-      this.localDQN.learn(stateVector, action, reward, nextStateVector);
-      return 0;
+    } catch (err) {
+      console.warn(`[PythonDQNBridge] Batch learn failed, falling back to local JS DQN for agent: ${this.agentType}. Error:`, err);
+      this.usingLocalFallback = true;
+      for (const t of batch) {
+        this.localDQN.learn(t.state, t.action, t.reward, t.next_state);
+      }
     }
   }
 
